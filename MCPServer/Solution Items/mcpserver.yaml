@@ -1,9 +1,9 @@
 ﻿swagger: '2.0'
 info:
   title: MCP Server
-  description: MCP Server able to search for products in dataverse and able to provide details like price, productnumber and so on.
+  description: MCP Server able to search for products in dataverse.
   version: '1.0'
-host: localhost:3001
+host: mcpservernet.azurewebsites.net
 basePath: /
 schemes:
   - https
@@ -26,7 +26,7 @@ definitions:
 paths:
   /sse:
     get:
-      summary: MCP Server
+      summary: MCP Server able to search for products in dataverse.
       parameters:
         - in: query
           name: sessionId
