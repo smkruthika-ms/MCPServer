@@ -24,7 +24,7 @@ definitions:
       error:
         type: object
 paths:
-  /sse:
+  /http:
     get:
       summary: MCP Server able to search for products in dataverse.
       parameters:
@@ -45,5 +45,54 @@ paths:
       tags:
         - Agentic
         - McpSse
+  /stream-products:
+    get:
+      summary: Stream products as NDJSON (newline-delimited JSON)
+      parameters:
+        - in: query
+          name: productName
+          type: string
+          required: true
+        - in: query
+          name: region
+          type: string
+          required: false
+      produces:
+        - application/x-ndjson
+      responses:
+        '200':
+          description: Stream of products (NDJSON)
+          schema:
+            type: string
+      operationId: StreamProductsNDJSON
+      tags:
+        - Agentic
+        - McpStream
+    post:
+      summary: Stream products as NDJSON (newline-delimited JSON) via POST
+      consumes:
+        - application/json
+      produces:
+        - application/x-ndjson
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            properties:
+              productName:
+                type: string
+              region:
+                type: string
+      responses:
+        '200':
+          description: Stream of products (NDJSON)
+          schema:
+            type: string
+      operationId: StreamProductsNDJSONPost
+      tags:
+        - Agentic
+        - McpStream
 securityDefinitions: {}
 security: []

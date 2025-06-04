@@ -8,13 +8,17 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
-    <PackageReference Include="ModelContextProtocol" Version="0.2.0-preview.3" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.2.0-preview.3" />
-    <PackageReference Include="ModelContextProtocol.Core" Version="0.2.0-preview.3" />
+   
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Model\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol.AspNetCore\ModelContextProtocol.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol.Core\ModelContextProtocol.Core.csproj" />
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol\ModelContextProtocol.csproj" />
   </ItemGroup>
 
 </Project>
