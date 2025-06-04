@@ -1,7 +1,7 @@
 ﻿swagger: '2.0'
 info:
   title: MCP Server
-  description: MCP Server able to make dataverse calls.
+  description: MCP Server able to search for products in dataverse and able to provide details like price, productnumber and so on.
   version: '1.0'
 host: localhost:3001
 basePath: /
@@ -41,7 +41,7 @@ paths:
             $ref: '#/definitions/QueryResponse'
         '201':
           description: Created and will follow callback
-      operationId: WebSearchMCP
+      operationId: ProductSearchMCP
       tags:
         - Agentic
         - McpSse
