@@ -10,20 +10,36 @@ builder.Services
     .WithToolsFromAssembly();
 
 builder.Services.AddSingleton<DataverseApiService>();
+builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
+
+// Example: Log startup
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("MCPServer started at {Time}", DateTime.UtcNow);
 
 // Configure the HTTP request pipeline.
 app.MapMcp();
 
 app.MapGet("/stream-products", async (HttpContext context, DataverseApiService dataverseApiService, string productName, string region) =>
 {
-    context.Response.Headers.Add("Content-Type", "application/x-ndjson");
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("StreamProducts");
+    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(authHeader))
+    {
+        logger.LogInformation("Authorization header received: {AuthHeader}", authHeader);
+    }
+    else
+    {
+        logger.LogWarning("No Authorization header received.");
+    }
+    logger.LogInformation("/stream-products called with productName={ProductName}, region={Region}", productName, region);
+    context.Response.Headers["Content-Type"] = "application/x-ndjson";
     var product = await dataverseApiService.StreamProductsAsync(productName, region);
     var json = JsonSerializer.Serialize(product);
     await context.Response.WriteAsync(json + "\n");
     await context.Response.Body.FlushAsync();
-    
+    logger.LogInformation("/stream-products completed for productName={ProductName}, region={Region}", productName, region);
 });
 
 app.Run();
