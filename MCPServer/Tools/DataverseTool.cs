@@ -26,14 +26,32 @@ public sealed class WebSearchTool
     {
         try
         {
-            var authHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(authHeader))
+            var request = _httpContextAccessor.HttpContext?.Request;
+            if (request != null)
             {
-                _logger.LogInformation("Authorization header received in tool: {AuthHeader}", authHeader);
+                // Log method, path, headers, query, and body (if needed)
+                _logger.LogInformation("Request Method: {Method}", request.Method);
+                _logger.LogInformation("Request Path: {Path}", request.Path);
+                foreach (var header in request.Headers)
+                {
+                    _logger.LogInformation("Header: {Key} = {Value}", header.Key, header.Value);
+                }
+                foreach (var query in request.Query)
+                {
+                    _logger.LogInformation("Query: {Key} = {Value}", query.Key, query.Value);
+                }
+                // Optionally log body (for POST/PUT) - not shown here for GET
+
+                var envHeader = request.Headers["x-ms-environment-id"].FirstOrDefault();
+                if (envHeader != "892d452a-23d7-eb34-aece-cfc2c7dde70a")
+                {
+                    _logger.LogWarning("Request blocked: Invalid or missing x-ms-environment-id header. Value received: {EnvHeader}", envHeader);
+                    throw new UnauthorizedAccessException("Invalid or missing x-ms-environment-id header.");
+                }
             }
             else
             {
-                _logger.LogInformation("No Authorization header received in tool.");
+                _logger.LogInformation("No HttpContext or Request available in tool.");
             }
             var a = await _dataverseApiService.StreamProductsAsync(productName, region);
             return JsonSerializer.SerializeToElement(a);
@@ -46,18 +64,5 @@ public sealed class WebSearchTool
         }
     }
 
-    [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile(string accountName)
-    {
-        try
-        {
-            var summary = await _dataverseApiService.GetAccountAsync(accountName);
-            return summary;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in SummarizeAccountProfile: {Message}", ex.Message);
-            return $"Error: {ex.Message}";
-        }
-    }
+    
 }

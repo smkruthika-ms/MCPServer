@@ -19,7 +19,7 @@ public sealed class AccountNewsTool
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
-
+/*
     [McpServerTool, Description("Account News Highlights for the Account")]
     public async Task<string> GetAccountNews(string accountName)
     {
@@ -34,4 +34,4 @@ public sealed class AccountNewsTool
             return $"Error: {ex.Message}";
         }
     }
-}
+*/}

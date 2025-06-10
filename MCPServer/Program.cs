@@ -10,6 +10,8 @@ builder.Services
     .WithToolsFromAssembly();
 
 builder.Services.AddSingleton<DataverseApiService>();
+builder.Services.AddSingleton<SalesAgentPluginApiService>();
+
 builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();

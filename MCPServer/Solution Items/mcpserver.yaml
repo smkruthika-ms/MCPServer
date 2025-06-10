@@ -23,8 +23,19 @@ definitions:
         type: object
       error:
         type: object
+securityDefinitions:
+  oauth2-auth:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: https://login.microsoftonline.com/common/oauth2/authorize
+    tokenUrl: https://login.microsoftonline.com/common/oauth2/token
+    scopes:
+      https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user: https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user
+security:
+  - oauth2-auth:
+    - https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user
 paths:
-  /http:
+  /sse:
     get:
       summary: MCP Server able to search for products in dataverse.
       parameters:
@@ -45,54 +56,5 @@ paths:
       tags:
         - Agentic
         - McpSse
-  /stream-products:
-    get:
-      summary: Stream products as NDJSON (newline-delimited JSON)
-      parameters:
-        - in: query
-          name: productName
-          type: string
-          required: true
-        - in: query
-          name: region
-          type: string
-          required: false
-      produces:
-        - application/x-ndjson
-      responses:
-        '200':
-          description: Stream of products (NDJSON)
-          schema:
-            type: string
-      operationId: StreamProductsNDJSON
-      tags:
-        - Agentic
-        - McpStream
-    post:
-      summary: Stream products as NDJSON (newline-delimited JSON) via POST
-      consumes:
-        - application/json
-      produces:
-        - application/x-ndjson
-      parameters:
-        - in: body
-          name: body
-          required: true
-          schema:
-            type: object
-            properties:
-              productName:
-                type: string
-              region:
-                type: string
-      responses:
-        '200':
-          description: Stream of products (NDJSON)
-          schema:
-            type: string
-      operationId: StreamProductsNDJSONPost
-      tags:
-        - Agentic
-        - McpStream
-securityDefinitions: {}
-security: []
+      security:
+        - oauth2-auth: []
