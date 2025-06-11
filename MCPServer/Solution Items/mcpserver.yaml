@@ -3,10 +3,10 @@ info:
   title: MCP Server
   description: MCP Server able to search for products in dataverse.
   version: '1.0'
-host: mcpservernet.azurewebsites.net
+host: localhost:3001
 basePath: /
 schemes:
-  - https
+  - http
 definitions:
   QueryResponse:
     type: object
