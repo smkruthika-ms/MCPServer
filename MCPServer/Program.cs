@@ -39,18 +39,20 @@ app.UseAuthorization();
 
 // Example: Log startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("MCPServer started at {Time}", DateTime.UtcNow);
+logger.LogInformation("ABCD MCPServer started at {Time}", DateTime.UtcNow);
 app.Use(async (context, next) =>
 {
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
     var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+    logger.LogInformation("ABCD Start Headers: {Headers}", string.Join(",", context.Request.Headers.Select(h => $"{h.Key}")));
+
     if (!string.IsNullOrEmpty(authHeader))
     {
-        logger.LogInformation("Authorization header received: {AuthHeader}", authHeader);
+        logger.LogInformation("ABCD - Authorization header received: {AuthHeader}", authHeader.Substring(9));
     }
     else
     {
-        logger.LogWarning("No Authorization header received.");
+        logger.LogWarning("ABCD - No Auth header received.");
     }
     await next();
 });
