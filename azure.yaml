@@ -1,0 +1,6 @@
+name: mcpserver
+services:
+  api:
+    project: ./MCPServer
+    language: csharp
+    host: appservice

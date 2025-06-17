@@ -30,10 +30,10 @@ securityDefinitions:
     authorizationUrl: https://login.microsoftonline.com/common/oauth2/authorize
     tokenUrl: https://login.microsoftonline.com/common/oauth2/token
     scopes:
-      https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user: https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user
+      api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user: Access MCPServer
 security:
   - oauth2-auth:
-    - https://microsoft.onmicrosoft.com/copilotnonprod/access_as_user
+    - api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user
 paths:
   /sse:
     get:

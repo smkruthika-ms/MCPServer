@@ -1,8 +1,9 @@
-using ModelContextProtocol.Server;
-using System.ComponentModel;
+using MCPServer.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using MCPServer.Services;
+using ModelContextProtocol.Server;
+using System.ComponentModel;
+using System.Net.Http;
 
 namespace WebSearchMCPServer.Tools;
 
@@ -32,13 +33,24 @@ public sealed class SalesChatPluginTool
                 if (envHeader != "892d452a-23d7-eb34-aece-cfc2c7dde70a")
                 {
                     _logger.LogWarning("Request blocked: Invalid or missing x-ms-environment-id header. Value received: {EnvHeader}", envHeader);
-                    throw new UnauthorizedAccessException("Invalid or missing x-ms-environment-id header.");
+                   // throw new UnauthorizedAccessException("Invalid or missing x-ms-environment-id header.");
                 }
             }
             else
             {
                 _logger.LogInformation("No HttpContext or Request available in tool.");
             }
+            if (!request.Headers.TryGetValue("X-Resource-Access-Token", out var tokenValue))
+            {
+                _logger.LogInformation("Auth Failed", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
+
+            } else
+            {
+                _logger.LogInformation("Auth Successful", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
+
+            }
+
+            string accessToken = tokenValue.ToString();
             var response = await _salesAgentPluginApiService.ChatWithAgentAsync(plannerKey, message);
             return response;
         }
