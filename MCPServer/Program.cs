@@ -59,39 +59,7 @@ app.UseAuthorization();
 
 // Example: Log startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("ABCD MCPServer started at {Time}", DateTime.UtcNow);
-app.Use(async (context, next) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    logger.LogInformation("ABCD Start Headers: {Headers}", string.Join(",", context.Request.Headers.Select(h => $"{h.Key}")));
-
-    if (!string.IsNullOrEmpty(authHeader))
-    {
-        logger.LogInformation("ABCD - Authorization header received: ");
-    }
-    else
-    {
-        logger.LogWarning("ABCD - No Auth header received.");
-    }
-
-     var token = context.Request.Headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(token))
-    {
-        //var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Easy Auth AAD Access Token: {Token}");
-    }
-    else
-    {
-        logger.LogInformation("Empty easy Auth AAD Access Token");
-        
-    }
-    if (string.IsNullOrEmpty(authHeader) && !string.IsNullOrEmpty(token))
-    {
-        context.Request.Headers["Authorization"] = $"Bearer {token}";
-    }
-    await next();
-});
+logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 // Middleware to log Authorization header and decode JWT claims for debugging
 app.Use(async (context, next) =>
@@ -100,7 +68,7 @@ app.Use(async (context, next) =>
     var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
     if (!string.IsNullOrEmpty(authHeader))
     {
-        logger.LogInformation("[AUTH DEBUG] Authorization header received: {AuthHeader}", authHeader);
+        logger.LogInformation("[AUTH DEBUG] Authorization header received: " );
         // Try to decode JWT claims for debugging
         
     }
@@ -112,72 +80,26 @@ app.Use(async (context, next) =>
 });
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
-/*
-/*
-app.MapGet("/stream-products", async (HttpContext context, DataverseApiService dataverseApiService, string productName, string region) =>
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
+
+// Example: Streamable HTTP endpoint for /sse
+app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
 {
-    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("StreamProducts");
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(authHeader))
+    context.Response.Headers.Add("Cache-Control", "no-cache");
+    context.Response.ContentType = "application/x-ndjson";
+
+    // Example: send 5 events, one per second
+    for (int i = 1; i <= 5; i++)
     {
-        logger.LogInformation("Authorization header received: {AuthHeader}", authHeader);
+        var eventData = JsonSerializer.Serialize(new { message = $"Event {i}", timestamp = DateTime.UtcNow });
+        await context.Response.WriteAsync(eventData + "\n");
+        await context.Response.Body.FlushAsync();
+        await Task.Delay(1000); // simulate streaming
     }
-    else
-    {
-        logger.LogWarning("No Authorization header received.");
-    }
-    logger.LogInformation("/stream-products called with productName={ProductName}, region={Region}", productName, region);
-    context.Response.Headers["Content-Type"] = "application/x-ndjson";
-    var product = await dataverseApiService.StreamProductsAsync(productName, region);
-    var json = JsonSerializer.Serialize(product);
-    await context.Response.WriteAsync(json + "\n");
-    await context.Response.Body.FlushAsync();
-    logger.LogInformation("/stream-products completed for productName={ProductName}, region={Region}", productName, region);
 });
 
-app.MapGet("/sse", (HttpContext context) =>
-{
-    //var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("StreamProducts");
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(authHeader))
-    {
-        logger.LogInformation("Authorization header received: {AuthHeader}", authHeader);
-    }
-    else
-    {
-        logger.LogWarning("No Authorization header received.");
-    }
-    // Your existing /sse endpoint logic here
-    // For example, return a simple response for now
-    return Results.Ok(new { message = "Authenticated /sse endpoint reached." });
-});
-
-
-app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] (HttpContext context) =>
-{
-    // Your existing /sse endpoint logic here
-    // For example, return a simple response for now
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(authHeader))
-    {
-        logger.LogInformation("Authorization header received: {AuthHeader}", authHeader);
-    }
-    else
-    {
-        logger.LogWarning("No Authorization header received.");
-    }
-    var token = context.Request.Headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(token))
-    {
-        //var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Easy Auth AAD Access Token: {Token}", token.Substring(9));
-    }
-    return Results.Ok(new { message = "Authenticated /sse endpoint reached." });
-});
-
-
-*/
+// Example log to verify Application Insights integration
+logger.LogInformation("[App Insights Test] Application Insights logging test at {Time}", DateTime.UtcNow);
 
 app.Run();

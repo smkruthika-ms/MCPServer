@@ -41,17 +41,7 @@ public sealed class SalesChatPluginTool
             {
                 _logger.LogInformation("No HttpContext or Request available in tool.");
             }
-            if (!request.Headers.TryGetValue("X-Resource-Access-Token", out var tokenValue))
-            {
-                _logger.LogInformation("Auth Failed", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
-
-            } else
-            {
-                _logger.LogInformation("Auth Successful", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
-
-            }
-
-            string accessToken = tokenValue.ToString();
+            
             var response = await _salesAgentPluginApiService.ChatWithAgentAsync(plannerKey, message);
             return response;
         }
