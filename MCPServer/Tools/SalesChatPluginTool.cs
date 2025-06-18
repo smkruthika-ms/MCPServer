@@ -53,29 +53,29 @@ public sealed class SalesChatPluginTool
     }
 
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile(string message)
+    public async Task<string> SummarizeAccountProfile(string input)
     {
-        return await CallAgent("Account Summary", message);
+        return await CallAgent("Account Summary", input);
     }
 
     [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(string message)
+    public async Task<string> GetAccountNews(string input)
     {
-        return await CallAgent("DraupAccountNews", message);
+        return await CallAgent("DraupAccountNews", input);
     }
 
     [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
-    public async Task<string> GetAccountCompetitor(string message)
+    public async Task<string> GetAccountCompetitor(string input)
     {
-        return await CallAgent("Account Competitor", message );
+        return await CallAgent("Account Competitor", input);
     }
 
     [McpServerTool, Description("Fetches and displays the list of account team members working on an account")]
-    public async Task<string> GetAccountTeam(string message)
+    public async Task<string> GetAccountTeam(string input)
     {
-        return await CallAgent("GetAccountTeamM365", message);
+        return await CallAgent("GetAccountTeamM365", input);
     }
-
+    /*
     [McpServerTool, Description("Data related to Agreement, Enrollment, deal book and license details for a specific agreement Id/agreement Number or Account/TPID. It provides detailed insights on various elements of agreement such as - applied discounts, price details, quantity, related SKUs details, license estates, amendment details, product family details.")]
     public async Task<string> GetAgreementDetails(string message)
     {
@@ -87,7 +87,7 @@ public sealed class SalesChatPluginTool
     {
         return await CallAgent("ACR", message);
     }
-
+    */
 
 
     
