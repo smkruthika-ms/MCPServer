@@ -26,6 +26,7 @@ public sealed class SalesChatPluginTool
         try
         {
             var request = _httpContextAccessor.HttpContext?.Request;
+            
             if (request != null)
             {
                 _logger.LogInformation("McpServer Request Headers: {Headers}", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
