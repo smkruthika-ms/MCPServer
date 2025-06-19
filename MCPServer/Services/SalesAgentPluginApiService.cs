@@ -8,8 +8,9 @@ public class SalesAgentPluginApiService
 {
     public async Task<string> ChatWithAgentAsync(
         string plannerKey,
-        string message)
+        string message,string token)
     {
+        string AuthToken = token;
         var requestBody = new
         {
             InvokeAllFunctions = true,
@@ -33,12 +34,15 @@ public class SalesAgentPluginApiService
         using var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Post, "https://salescopilotskeusuat.azurewebsites.net/api/Playground");
         request.Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
-        var token = Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
-        if (string.IsNullOrEmpty(token))
+        if (string.IsNullOrEmpty(AuthToken))
+        {
+            AuthToken = Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
+        }
+        if (string.IsNullOrEmpty(AuthToken))
         {
             throw new InvalidOperationException("Sales Agent Plugin token is not set in environment variables.");
         }
-        request.Headers.Add("Authorization", $"Bearer {token}");
+        request.Headers.Add("Authorization", $"Bearer {AuthToken}");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();

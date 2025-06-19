@@ -26,7 +26,7 @@ public sealed class SalesChatPluginTool
         try
         {
             var request = _httpContextAccessor.HttpContext?.Request;
-            
+            var token = "";
             if (request != null)
             {
                 _logger.LogInformation("McpServer Request Headers: {Headers}", string.Join(",", request.Headers.Select(h => $"{h.Key}")));
@@ -34,7 +34,12 @@ public sealed class SalesChatPluginTool
                 if (envHeader != "892d452a-23d7-eb34-aece-cfc2c7dde70a")
                 {
                     _logger.LogWarning("Request blocked: Invalid or missing x-ms-environment-id header. Value received: {EnvHeader}", envHeader);
-                   // throw new UnauthorizedAccessException("Invalid or missing x-ms-environment-id header.");
+                    // throw new UnauthorizedAccessException("Invalid or missing x-ms-environment-id header.");
+                }
+                var authHeader = request.Headers["Authorization"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    token = authHeader.Substring("Bearer ".Length).Trim();
                 }
             }
             else
@@ -42,7 +47,7 @@ public sealed class SalesChatPluginTool
                 _logger.LogInformation("No HttpContext or Request available in tool.");
             }
             
-            var response = await _salesAgentPluginApiService.ChatWithAgentAsync(plannerKey, message);
+            var response = await _salesAgentPluginApiService.ChatWithAgentAsync(plannerKey, message, token);
             return response;
         }
         catch (Exception ex)
@@ -88,7 +93,6 @@ public sealed class SalesChatPluginTool
         return await CallAgent("ACR", message);
     }
     */
-
 
     
 }
