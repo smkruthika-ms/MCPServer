@@ -19,9 +19,9 @@ public class SalesAgentPluginApiService
 
     public async Task<string> ChatWithAgentAsync(
         string plannerKey,
-        string message)
+        string message, string token)
     {
-        _logger.LogInformation("Starting ChatWithAgentAsync with PlannerKey: {PlannerKey}", plannerKey);
+        _logger.LogInformation("Starting ChatWithAgentAsync with PlannerKey: {PlannerKey} {TokenLength}", plannerKey, token?.Length ?? 0);
 
         string AuthToken = "";
         var requestBody = new
@@ -53,7 +53,7 @@ public class SalesAgentPluginApiService
             _logger.LogInformation("App {Id} and Scope {Scope} will be used for token acquisition.", 
                 Environment.GetEnvironmentVariable("AppId"), Environment.GetEnvironmentVariable("AppScope"));
             
-            AuthToken = await GetTokenAsync(new [] { Environment.GetEnvironmentVariable("AppScope") });
+            AuthToken = await GetTokenAsync(new [] { Environment.GetEnvironmentVariable("AppScope") }, token);
             if (string.IsNullOrEmpty(AuthToken))
             {
                 _logger.LogError("Failed to acquire AuthToken.");
@@ -74,7 +74,8 @@ public class SalesAgentPluginApiService
         return result;
     }
 
-    public async Task<string?> GetTokenAsync(IReadOnlyCollection<string> scopes)
+    // Modify GetTokenAsync to use On-Behalf-Of flow
+    public async Task<string?> GetTokenAsync(IReadOnlyCollection<string> scopes, string userToken)
     {
         _logger.LogInformation("Starting GetTokenAsync with scopes: {Scopes}", string.Join(",", scopes));
 
@@ -95,7 +96,8 @@ public class SalesAgentPluginApiService
                     .WithLegacyCacheCompatibility()
                     .Build();
 
-                result = await _confidentialClient.AcquireTokenForClient(scopes).ExecuteAsync();
+                var userAssertion = new UserAssertion(userToken);
+                result = await _confidentialClient.AcquireTokenOnBehalfOf(scopes, userAssertion).ExecuteAsync();
                 retryDueToException = 0;
 
                 if (result != null)

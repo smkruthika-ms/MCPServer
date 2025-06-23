@@ -2,6 +2,8 @@ using MCPServer.Services;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using WebSearchMCPServer.Tools;
+using ModelContextProtocol.Protocol;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,8 +11,52 @@ builder.Services.AddHttpContextAccessor();
 // Add services to the container.
 builder.Services
     .AddMcpServer()
-    .WithHttpTransport()
-    .WithToolsFromAssembly();
+    .WithHttpTransport(options =>
+    {
+        // Set session timeout to 30 minutes
+        options.IdleTimeout = TimeSpan.FromMinutes(30);
+
+        // Limit idle sessions to 10,000
+        options.MaxIdleSessionCount = 10000;
+
+        // Configure per-session options
+        options.ConfigureSessionOptions = (httpContext, serverOptions, cancellationToken) =>
+        {
+            // Extract token from Authorization header
+             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
+            if (!string.IsNullOrEmpty(authHeader))
+            {
+                var token = authHeader.Replace("Bearer ", "");
+                serverOptions.ServerInfo = new Implementation
+                {
+                    Name = token,
+                    Version = "1.0.0"
+                };
+            }
+            else
+            {
+                serverOptions.ServerInfo = new Implementation
+                {
+                    Name = "tokenless-server",
+                    Version = "1.0.0"
+                };
+            }
+
+
+            return Task.CompletedTask;
+        };
+
+        // Custom session handling
+        options.RunSessionHandler = (httpContext, mcpServer, cancellationToken) =>
+        {
+            // Perform custom logic before running the session
+            Console.WriteLine($"Starting session for user: {httpContext.User.Identity?.Name}");
+
+            // Run the session
+            return mcpServer.RunAsync(cancellationToken);
+        };
+    })
+    .WithTools<SalesChatPluginTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
