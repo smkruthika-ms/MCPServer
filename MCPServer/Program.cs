@@ -1,9 +1,10 @@
 using MCPServer.Services;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using WebSearchMCPServer.Tools;
 using ModelContextProtocol.Protocol;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
+using WebSearchMCPServer.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,9 +28,17 @@ builder.Services
             if (!string.IsNullOrEmpty(authHeader))
             {
                 var token = authHeader.Replace("Bearer ", "");
+
+                var handler = new JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
+
+                var appId = jwtToken.Payload["appid"]?.ToString() ?? "";
+                var aud = jwtToken.Audiences != null ? string.Join(", ", jwtToken.Audiences) : "";
+                var iss = jwtToken.Issuer ?? "";
+
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = token,
+                    Name = appId + "___" + aud + "___" + iss,
                     Version = "1.0.0"
                 };
             }
@@ -90,7 +99,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             "c6894284-ffe9-46fe-b977-f7d275ad4ff9",
             "b84e16bc-c715-4f04-8d01-4de55ce8119d",
             "api://5d437e13-722e-4a8d-8f4f-3158cf570e94",
-            "http://msxsalescopilot01.crm.dynamics.com/"
+            "http://msxsalescopilot01.crm.dynamics.com/",
+            "afe3816a-f889-4e0f-8760-d131fa9116cf"
         },
         ValidateLifetime = true
     };
@@ -111,8 +121,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
