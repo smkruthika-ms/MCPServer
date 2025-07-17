@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using WebSearchMCPServer.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,12 +20,25 @@ builder.Services
 
         // Limit idle sessions to 10,000
         options.MaxIdleSessionCount = 10000;
+        
 
         // Configure per-session options
-        options.ConfigureSessionOptions = (httpContext, serverOptions, cancellationToken) =>
+        options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
         {
+            var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in httpContext.Request.Headers)
+            {
+                if (!header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+                {
+                    sanitizedHeaders[header.Key] = header.Value.ToString();
+                }
+            }
+
+            sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
+            
+            
             // Extract token from Authorization header
-             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
+            var authHeader = httpContext.Request.Headers["Authorization"].ToString();
             if (!string.IsNullOrEmpty(authHeader))
             {
                 var token = authHeader.Replace("Bearer ", "");
@@ -38,7 +52,7 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = appId + "___" + aud + "___" + iss,
+                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -46,7 +60,8 @@ builder.Services
             {
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = "tokenless-server",
+                    Name = "tokenless",
+                    //JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -65,7 +80,8 @@ builder.Services
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<SalesChatPluginTool>();
+    .WithTools<SalesChatPluginTool>()
+    .WithTools<ExtractContextTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
@@ -85,6 +101,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateAudience = true,
         ValidAudiences = new[]
         {
+            "https://microsoft.onmicrosoft.com/copilotnonprod",
+            "00000003-0000-0000-c000-000000000000",
+            "bb893c22-978d-4cd4-a6f7-bb6cc0d6e6ce",
             "api://5d437e13-722e-4a8d-8f4f-3158cf570e21f8",
             "https://apihub.azure.com",
             "96ff4394-9197-43aa-b393-6a41652e21f8",
