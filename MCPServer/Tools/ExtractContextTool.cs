@@ -15,14 +15,14 @@ using Microsoft.Extensions.Logging;
 namespace WebSearchMCPServer.Tools;
 
 [McpServerToolType]
-public sealed class SalesChatPluginTool
+public sealed class ExtractContextTool
 {
     private readonly SalesAgentPluginApiService _salesAgentPluginApiService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger<SalesChatPluginTool> _logger;
+    private readonly ILogger<ExtractContextTool> _logger;
     private readonly IMcpServer _mcpServer;
 
-    public SalesChatPluginTool(SalesAgentPluginApiService salesAgentPluginApiService, IHttpContextAccessor httpContextAccessor, ILogger<SalesChatPluginTool> logger)
+    public ExtractContextTool(SalesAgentPluginApiService salesAgentPluginApiService, IHttpContextAccessor httpContextAccessor, ILogger<ExtractContextTool> logger)
     {
         _salesAgentPluginApiService = salesAgentPluginApiService;
         _httpContextAccessor = httpContextAccessor;
@@ -46,31 +46,16 @@ public sealed class SalesChatPluginTool
         }
     }
 
-    [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
+    [McpServerTool, Description("Extract context about an account")]
+    public async Task<string> ExtractContextForAccount(IMcpServer thisServer, string input, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
-        return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        return Environment.GetEnvironmentVariable("TPID") ?? "784852";
+        //return await CallAgent("Account Summary", input, thisServer.ServerOptions.ServerInfo.Name);
     }
 
-    [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Fetching account news for input: {Input}", userPrompt);
-        return await CallAgent("DraupAccountNews", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
-    }
+    
 
-    [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
-    public async Task<string> GetAccountCompetitor(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
-    {
-        return await CallAgent("Account Competitor", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
-    }
-
-    [McpServerTool, Description("Fetches and displays the list of account team members working on an account")]
-    public async Task<string> GetAccountTeam(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
-    {   
-        return await CallAgent("GetAccountTeamM365", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
-    }
+    
     /*
     [McpServerTool, Description("Data related to Agreement, Enrollment, deal book and license details for a specific agreement Id/agreement Number or Account/TPID. It provides detailed insights on various elements of agreement such as - applied discounts, price details, quantity, related SKUs details, license estates, amendment details, product family details.")]
     public async Task<string> GetAgreementDetails(string message)
