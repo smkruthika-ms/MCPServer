@@ -47,27 +47,29 @@ public sealed class SalesChatPluginTool
     }
 
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
+    public async Task<string> GetCustomerSummary( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
     {
         _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
         return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
+
+
     [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
+    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Fetching account news for input: {Input}", userPrompt);
+        _logger.LogInformation("Fetching account news for input: {Input}", userPrompt, context);
         return await CallAgent("DraupAccountNews", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
-    public async Task<string> GetAccountCompetitor(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
+    public async Task<string> GetAccountCompetitor(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         return await CallAgent("Account Competitor", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Fetches and displays the list of account team members working on an account")]
-    public async Task<string> GetAccountTeam(IMcpServer thisServer, string userPrompt, CancellationToken cancellationToken)
+    public async Task<string> GetAccountTeam(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {   
         return await CallAgent("GetAccountTeamM365", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
@@ -77,13 +79,13 @@ public sealed class SalesChatPluginTool
     {
         return await CallAgent("Commercial Executive Plugin", message);
     }
-
-    [McpServerTool, Description("ACR stands for Azure Consumption Revenue, also referred to as Azure Resource Consumption or Azure Consumption. This can answer about anything related to ACU, invoiced usage, Advisor Score, Azure spend, ECIF, consumption units, MACC, reservation recommendations, Saving Plan, Azure churn risk, Azure credits, and ACO. To use this action, use a full sentence rather than a company name alone. If multiple company names are given, then make separate call to the action one with each company name. If more than one fiscal year (FY) is mentioned, then make separate call to action one with each fiscal year or FY.")]
-    public async Task<string> GetAccountConsumptionRevenue(string message)
-    {
-        return await CallAgent("ACR", message);
-    }
     */
+    [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
+    public async Task<string> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    {
+        return await CallAgent("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+    }
+    
 
     
 }
