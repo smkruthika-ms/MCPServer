@@ -119,7 +119,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             "b84e16bc-c715-4f04-8d01-4de55ce8119d",
             "api://5d437e13-722e-4a8d-8f4f-3158cf570e94",
             "http://msxsalescopilot01.crm.dynamics.com/",
-            "afe3816a-f889-4e0f-8760-d131fa9116cf"
+            "api://auth-eae1983a-8db2-4228-9ea9-633684a2ee22/972bf644-79c8-4dbc-9921-5040af077272",
+            "afe3816a-f889-4e0f-8760-d131fa9116cf",
+            "972bf644-79c8-4dbc-9921-5040af077272",
+            "api://auth-10003cd8-923e-4b58-b208-1a2bebdb7a4e/972bf644-79c8-4dbc-9921-5040af077272"
         },
         ValidateLifetime = true
     };

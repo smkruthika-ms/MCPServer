@@ -28,7 +28,19 @@ public sealed class SalesChatPluginTool
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
-  
+    private async Task<object> CallAgentObject(string plannerKey, string message, string token)
+    {
+        try
+        {
+            var response = await _salesAgentPluginApiService.ChatWithAgentObjectAsync(plannerKey, message, token);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error : {Message}", ex.Message);
+            return $"Error: {ex.Message}";
+        }
+    }
 
     private async Task<string> CallAgent(string plannerKey, string message, string token)
     {
@@ -47,7 +59,7 @@ public sealed class SalesChatPluginTool
     }
 
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> GetCustomerSummary( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
+    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
     {
         _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
         return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);

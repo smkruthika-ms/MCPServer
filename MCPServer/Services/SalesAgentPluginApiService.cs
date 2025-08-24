@@ -1,10 +1,13 @@
+﻿using Azure.Core;
+using Azure.Identity;
+using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.AppConfig;
+using Microsoft.Identity.Web;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.Identity.Client;
-using Microsoft.Identity.Web;
-using Microsoft.Extensions.Logging;
 
 namespace MCPServer.Services;
 
@@ -15,6 +18,116 @@ public class SalesAgentPluginApiService
     public SalesAgentPluginApiService(ILogger<SalesAgentPluginApiService> logger)
     {
         _logger = logger;
+    }
+
+    public async Task<object> ChatWithAgentObjectAsync(
+     string plannerKey,
+     string message, string token)
+    {
+        _logger.LogInformation("Starting ChatWithAgentAsync with PlannerKey: {PlannerKey} {TokenLength}", plannerKey, token?.Length ?? 0);
+
+        string AuthToken = token;
+        var requestBody = new
+        {
+            InvokeAllFunctions = true,
+            InvokeAllSkills = false,
+            filterURLs = false,
+            tracePlan = false,
+            RequestId = Guid.NewGuid().ToString(),
+            Value = message,
+            Inputs = new[] {
+                new { Key = "useOboTokenGeneration", Value = "true" },
+                new { Key = "Debug", Value = "yes" },
+                new { Key = "SendAdapativeCardFormat", Value = "yes" }
+            },
+            ExpeditionId = Guid.NewGuid().ToString(),
+            UserPrompt = message,
+            PlannerKey = plannerKey,
+            Source = "M365Agent"
+        };
+        var jsonBody = JsonSerializer.Serialize(requestBody);
+
+        using var client = new HttpClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://salescopilotskeusuat.azurewebsites.net/api/Playground");
+        request.Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
+
+        if (!string.IsNullOrEmpty(AuthToken))
+        {
+            _logger.LogWarning("AuthToken is empty, attempting to acquire token.");
+            _logger.LogInformation("App {Id} and Scope {Scope} will be used for token acquisition.",
+                Environment.GetEnvironmentVariable("AppId"), Environment.GetEnvironmentVariable("AppScope"));
+
+            string[] scopes = new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/.default" };
+
+
+            var credential = new DefaultAzureCredential(
+                    new DefaultAzureCredentialOptions
+                    {
+                        ManagedIdentityClientId = "8dc5f85c-0433-4316-8d8a-350879a6f59c"
+                    });
+            AccessToken accessToken = await credential.GetTokenAsync(new TokenRequestContext(scopes));
+            AuthToken = accessToken.Token;
+            _logger.LogInformation("Token successfully acquired 1. {count}", AuthToken);
+
+            var confidentialClient = ConfidentialClientApplicationBuilder.Create("972bf644-79c8-4dbc-9921-5040af077272")
+           .WithClientAssertion(() =>
+           {
+               var managedIdentityApp = ManagedIdentityApplicationBuilder
+                   .Create(ManagedIdentityId.WithUserAssignedClientId("8dc5f85c-0433-4316-8d8a-350879a6f59c"))
+                   .Build();
+               var managedIdentityAssertion = managedIdentityApp
+                   .AcquireTokenForManagedIdentity("api://AzureADTokenExchange/.default")
+                   .ExecuteAsync().GetAwaiter().GetResult();
+               return managedIdentityAssertion.AccessToken;
+           })
+           .WithAuthority(new Uri("https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/oauth2/token"))
+           .Build();
+
+
+            var userAssertion = new UserAssertion(token);
+
+            try
+            {
+                var result1 = await confidentialClient
+                .AcquireTokenOnBehalfOf(new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user" }, new UserAssertion(token))
+                .ExecuteAsync();
+
+                _logger.LogInformation("OBO token acquired successfully. Token Expiry: {ExpiryDate}", result1.ExpiresOn);
+                // return result.AccessToken;
+                AuthToken = result1.AccessToken;
+
+            }
+            catch (MsalServiceException ex)
+            {
+                _logger.LogError(ex, "Failed to acquire OBO token.");
+                return null;
+            }
+
+            //AuthToken = await GetTokenAsync(new[] { Environment.GetEnvironmentVariable("AppScope") }, token);
+            if (string.IsNullOrEmpty(AuthToken))
+            {
+                _logger.LogError("Failed to acquire AuthToken.");
+                throw new InvalidOperationException("Sales Agent Plugin token could not be acquired.");
+            }
+            else
+            {
+                _logger.LogInformation("Token successfully acquired 2. {count}", AuthToken);
+
+            }
+        }
+
+        //AuthToken = token;// Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
+        request.Headers.Add("Authorization", $"Bearer {AuthToken}");
+
+        _logger.LogInformation("Sending request to Sales Agent Plugin API.");
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadAsStringAsync();
+        _logger.LogInformation("Received response from Sales Agent Plugin API., " + result);
+        var resultJson = JsonSerializer.Deserialize<object>(result);
+
+        // ✅ Return the actual object (so it's not stringified again)
+        return resultJson;
     }
 
     public async Task<string> ChatWithAgentAsync(
@@ -40,40 +153,87 @@ public class SalesAgentPluginApiService
             ExpeditionId = Guid.NewGuid().ToString(),
             UserPrompt = message,
             PlannerKey = plannerKey,
-            Source = "MCPServer"
+            Source = "M365Agent"
         };
         var jsonBody = JsonSerializer.Serialize(requestBody);
 
         using var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Post, "https://salescopilotskeusuat.azurewebsites.net/api/Playground");
         request.Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
-        /*
-        if (string.IsNullOrEmpty(AuthToken))
+        
+        if (!string.IsNullOrEmpty(AuthToken))
         {
             _logger.LogWarning("AuthToken is empty, attempting to acquire token.");
             _logger.LogInformation("App {Id} and Scope {Scope} will be used for token acquisition.", 
                 Environment.GetEnvironmentVariable("AppId"), Environment.GetEnvironmentVariable("AppScope"));
-            
-            AuthToken = await GetTokenAsync(new [] { Environment.GetEnvironmentVariable("AppScope") }, token);
+
+            string[] scopes = new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/.default" };
+
+
+            var credential = new DefaultAzureCredential(
+                    new DefaultAzureCredentialOptions
+                    {
+                        ManagedIdentityClientId = "8dc5f85c-0433-4316-8d8a-350879a6f59c"
+                    });
+            AccessToken accessToken = await credential.GetTokenAsync(new TokenRequestContext(scopes));
+            AuthToken = accessToken.Token;
+            _logger.LogInformation("Token successfully acquired 1. {count}", AuthToken);
+
+            var confidentialClient = ConfidentialClientApplicationBuilder.Create("972bf644-79c8-4dbc-9921-5040af077272")
+           .WithClientAssertion(() =>
+           {
+               var managedIdentityApp = ManagedIdentityApplicationBuilder
+                   .Create(ManagedIdentityId.WithUserAssignedClientId("8dc5f85c-0433-4316-8d8a-350879a6f59c"))
+                   .Build();
+               var managedIdentityAssertion = managedIdentityApp
+                   .AcquireTokenForManagedIdentity("api://AzureADTokenExchange/.default")
+                   .ExecuteAsync().GetAwaiter().GetResult();
+               return managedIdentityAssertion.AccessToken;
+           })
+           .WithAuthority(new Uri("https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/oauth2/token"))
+           .Build();
+
+
+            var userAssertion = new UserAssertion(token);
+
+            try
+            {
+                var result1 =  await confidentialClient
+                .AcquireTokenOnBehalfOf(new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user" }, new UserAssertion(token))
+                .ExecuteAsync();
+
+                _logger.LogInformation("OBO token acquired successfully. Token Expiry: {ExpiryDate}", result1.ExpiresOn);
+               // return result.AccessToken;
+               AuthToken  = result1.AccessToken;
+
+            }
+            catch (MsalServiceException ex)
+            {
+                _logger.LogError(ex, "Failed to acquire OBO token.");
+                return null;
+            }
+
+            //AuthToken = await GetTokenAsync(new[] { Environment.GetEnvironmentVariable("AppScope") }, token);
             if (string.IsNullOrEmpty(AuthToken))
             {
                 _logger.LogError("Failed to acquire AuthToken.");
                 throw new InvalidOperationException("Sales Agent Plugin token could not be acquired.");
-            } else
+            }
+            else
             {
-                _logger.LogInformation("Token successfully acquired. {count}", AuthToken.Length);
+                _logger.LogInformation("Token successfully acquired 2. {count}", AuthToken);
                 
             }
         }
-        */
-        AuthToken = token;// Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
+        
+        //AuthToken = token;// Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
         request.Headers.Add("Authorization", $"Bearer {AuthToken}");
 
         _logger.LogInformation("Sending request to Sales Agent Plugin API.");
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();
-        _logger.LogInformation("Received response from Sales Agent Plugin API.");
+        _logger.LogInformation("Received response from Sales Agent Plugin API., " + result);
         return result;
     }
 
