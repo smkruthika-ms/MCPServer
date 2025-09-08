@@ -59,19 +59,19 @@ public sealed class SalesChatPluginTool
     }
 
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
+    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context, CancellationToken cancellationToken, string plannerKey = "Account Summary")
     {
-        _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
-        return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}, context: {context}, plannerKey = {plannerKey}", userPrompt, context, plannerKey);
+        return await CallAgent(plannerKey, userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
 
 
     [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken, string plannerKey = "DraupAccountNews")
     {
-        _logger.LogInformation("Fetching account news for input: {Input}", userPrompt, context);
-        return await CallAgent("DraupAccountNews", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        _logger.LogInformation("Fetching account news for input: {Input}, context: {context}, plannerKey = {plannerKey}", userPrompt, context, plannerKey);
+        return await CallAgent(plannerKey, userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
@@ -93,9 +93,9 @@ public sealed class SalesChatPluginTool
     }
     */
     [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
-    public async Task<string> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<object> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
-        return await CallAgent("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        return await CallAgentObject("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
     
 
