@@ -81,6 +81,7 @@ builder.Services
         };
     })
     .WithTools<SalesChatPluginTool>()
+    .WithTools<AgentDiscoverabilityTool>()
     .WithTools<ExtractContextTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
