@@ -20,9 +20,10 @@ builder.Services
 
         // Limit idle sessions to 10,000
         options.MaxIdleSessionCount = 10000;
-        
 
-        // Configure per-session options
+
+        /* NOTE: Uncomment this to send token to downstream tools
+         * This logs the token to application insight, consider hashing it 
         options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
         {
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -69,6 +70,7 @@ builder.Services
 
             return Task.CompletedTask;
         };
+        */
 
         // Custom session handling
         options.RunSessionHandler = (httpContext, mcpServer, cancellationToken) =>
