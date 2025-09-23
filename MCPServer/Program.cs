@@ -52,7 +52,8 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
+                    // TODO: This logs the token to app insights, consider hashing 
+                    Name = token,
                     Version = "1.0.0"
                 };
             }
@@ -61,7 +62,6 @@ builder.Services
                 serverOptions.ServerInfo = new Implementation
                 {
                     Name = "tokenless",
-                    //JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -132,34 +132,12 @@ var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Example: Log startup
+
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
-// Middleware to log Authorization header and decode JWT claims for debugging
-
-
-// Configure the HTTP request pipeline.
-//app.MapMcp();
 app.MapMcp().RequireAuthorization();
-/*
-// Example: Streamable HTTP endpoint for /sse
-app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
-{
-    context.Response.Headers.Add("Cache-Control", "no-cache");
-    context.Response.ContentType = "application/x-ndjson";
 
-    // Example: send 5 events, one per second
-    for (int i = 1; i <= 5; i++)
-    {
-        var eventData = JsonSerializer.Serialize(new { message = $"Event {i}", timestamp = DateTime.UtcNow });
-        await context.Response.WriteAsync(eventData + "\n");
-        await context.Response.Body.FlushAsync();
-        await Task.Delay(1000); // simulate streaming
-    }
-});
-*/
-// Example log to verify Application Insights integration
 logger.LogInformation("[App Insights Test] Application Insights logging test at {Time}", DateTime.UtcNow);
 
 app.Run();
