@@ -5,12 +5,6 @@ VisualStudioVersion = 17.13.36105.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCPServer", "MCPServer\MCPServer.csproj", "{78A1E434-8FA8-4EA1-A585-AEA01E80B912}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelContextProtocol", "..\mcp-csharp-sdk\src\ModelContextProtocol\ModelContextProtocol.csproj", "{643BD8CA-831E-5482-A1D6-680635AC7E7F}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelContextProtocol.AspNetCore", "..\mcp-csharp-sdk\src\ModelContextProtocol.AspNetCore\ModelContextProtocol.AspNetCore.csproj", "{95BA3F4F-9178-047B-A685-EDF2C0B7CA63}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelContextProtocol.Core", "..\mcp-csharp-sdk\src\ModelContextProtocol.Core\ModelContextProtocol.Core.csproj", "{675863AE-0D32-AEA9-1C21-97F6F5020D7D}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,18 +15,6 @@ Global
 		{78A1E434-8FA8-4EA1-A585-AEA01E80B912}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{78A1E434-8FA8-4EA1-A585-AEA01E80B912}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{78A1E434-8FA8-4EA1-A585-AEA01E80B912}.Release|Any CPU.Build.0 = Release|Any CPU
-		{643BD8CA-831E-5482-A1D6-680635AC7E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{643BD8CA-831E-5482-A1D6-680635AC7E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{643BD8CA-831E-5482-A1D6-680635AC7E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{643BD8CA-831E-5482-A1D6-680635AC7E7F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{95BA3F4F-9178-047B-A685-EDF2C0B7CA63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{95BA3F4F-9178-047B-A685-EDF2C0B7CA63}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{95BA3F4F-9178-047B-A685-EDF2C0B7CA63}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{95BA3F4F-9178-047B-A685-EDF2C0B7CA63}.Release|Any CPU.Build.0 = Release|Any CPU
-		{675863AE-0D32-AEA9-1C21-97F6F5020D7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{675863AE-0D32-AEA9-1C21-97F6F5020D7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{675863AE-0D32-AEA9-1C21-97F6F5020D7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{675863AE-0D32-AEA9-1C21-97F6F5020D7D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

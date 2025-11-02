@@ -1,88 +1,68 @@
 using MCPServer.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.ModelContextProtocol.HttpServer;
 using ModelContextProtocol.Protocol;
-using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using WebSearchMCPServer.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
 builder.Services.AddHttpContextAccessor();
 // Add services to the container.
 builder.Services
-    .AddMcpServer()
+    .AddMicrosoftMcpServer(builder.Configuration, options =>
+    {
+        options.ResourceHost = "https://mcpservernet.azurewebsites.net";
+    })
     .WithHttpTransport(options =>
     {
-        // Set session timeout to 30 minutes
         options.IdleTimeout = TimeSpan.FromMinutes(30);
-
-        // Limit idle sessions to 10,000
         options.MaxIdleSessionCount = 10000;
-        
-
-        // Configure per-session options
-        options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
+        options.ConfigureSessionOptions = async (httpContext, serverOptions, cancellationToken) =>
         {
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpContext.Request.Headers)
             {
-                if (!header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-                {
-                    sanitizedHeaders[header.Key] = header.Value.ToString();
-                }
+                sanitizedHeaders[header.Key] = header.Value.ToString();
             }
 
-            sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
-            
-            
-            // Extract token from Authorization header
-            var authHeader = httpContext.Request.Headers["Authorization"].ToString();
-            if (!string.IsNullOrEmpty(authHeader))
+            httpContext.Request.EnableBuffering();
+
+            string bodyText;
+            using (var reader = new StreamReader(
+                       httpContext.Request.Body,
+                       encoding: System.Text.Encoding.UTF8,
+                       detectEncodingFromByteOrderMarks: false,
+                       bufferSize: 1024,
+                       leaveOpen: true))
             {
-                var token = authHeader.Replace("Bearer ", "");
-
-                var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(token);
-
-                var appId = jwtToken.Payload["appid"]?.ToString() ?? "";
-                var aud = jwtToken.Audiences != null ? string.Join(", ", jwtToken.Audiences) : "";
-                var iss = jwtToken.Issuer ?? "";
-
-                serverOptions.ServerInfo = new Implementation
-                {
-                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
-                    Version = "1.0.0"
-                };
+                bodyText = await reader.ReadToEndAsync(cancellationToken);
+                httpContext.Request.Body.Position = 0;
             }
-            else
+
+            // optional: cap size to avoid huge logs
+            const int MAX = 64 * 1024;
+            if (bodyText.Length > MAX) bodyText = bodyText.Substring(0, MAX);
+            sanitizedHeaders["body"] = bodyText;
+            serverOptions.ServerInfo = new Implementation
             {
-                serverOptions.ServerInfo = new Implementation
-                {
-                    Name = "tokenless",
-                    //JsonSerializer.Serialize(sanitizedHeaders),
-                    Version = "1.0.0"
-                };
-            }
+                Name = JsonSerializer.Serialize(sanitizedHeaders),
+                Version = "1.0.0"
+            };
 
-
-            return Task.CompletedTask;
+            await Task.CompletedTask;
         };
 
-        // Custom session handling
         options.RunSessionHandler = (httpContext, mcpServer, cancellationToken) =>
         {
-            // Perform custom logic before running the session
             Console.WriteLine($"Starting session for user: {httpContext.User.Identity?.Name}");
-
-            // Run the session
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<SalesChatPluginTool>()
-    .WithTools<AgentDiscoverabilityTool>()
-    .WithTools<ExtractContextTool>();
+    .WithTools<SalesChatPluginTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
@@ -131,40 +111,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Example: Log startup
+//app.UseMicrosoftMcpServer(); // setup global middleware
+//app.MapMicrosoftMcpServer(); // map endpoint routes
+
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
-// Middleware to log Authorization header and decode JWT claims for debugging
-
-
-// Configure the HTTP request pipeline.
 app.MapMcp();
 //app.MapMcp().RequireAuthorization();
-/*
-// Example: Streamable HTTP endpoint for /sse
-app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
-{
-    context.Response.Headers.Add("Cache-Control", "no-cache");
-    context.Response.ContentType = "application/x-ndjson";
 
-    // Example: send 5 events, one per second
-    for (int i = 1; i <= 5; i++)
-    {
-        var eventData = JsonSerializer.Serialize(new { message = $"Event {i}", timestamp = DateTime.UtcNow });
-        await context.Response.WriteAsync(eventData + "\n");
-        await context.Response.Body.FlushAsync();
-        await Task.Delay(1000); // simulate streaming
-    }
-});
-*/
-// Example log to verify Application Insights integration
 logger.LogInformation("[App Insights Test] Application Insights logging test at {Time}", DateTime.UtcNow);
 
 app.Run();
