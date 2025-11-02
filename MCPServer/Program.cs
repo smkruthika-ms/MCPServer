@@ -28,13 +28,10 @@ builder.Services
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpContext.Request.Headers)
             {
-                if (!header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-                {
                     sanitizedHeaders[header.Key] = header.Value.ToString();
-                }
             }
 
-            sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
+            //sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
             
             
             // Extract token from Authorization header
@@ -52,7 +49,7 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
+                    Name = JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -60,8 +57,7 @@ builder.Services
             {
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = "tokenless",
-                    //JsonSerializer.Serialize(sanitizedHeaders),
+                    Name = JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -143,8 +139,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-//app.MapMcp();
-app.MapMcp().RequireAuthorization();
+app.MapMcp();
+//app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>

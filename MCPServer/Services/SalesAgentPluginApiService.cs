@@ -136,7 +136,7 @@ public class SalesAgentPluginApiService
     {
         _logger.LogInformation("Starting ChatWithAgentAsync with PlannerKey: {PlannerKey} {TokenLength}", plannerKey, token?.Length ?? 0);
 
-        string AuthToken = token;
+        string AuthToken = "";// token;
         var requestBody = new
         {
             InvokeAllFunctions = true,
@@ -160,7 +160,7 @@ public class SalesAgentPluginApiService
         using var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Post, "https://salescopilotskeusuat.azurewebsites.net/api/Playground");
         request.Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
-        
+        /*
         if (!string.IsNullOrEmpty(AuthToken))
         {
             _logger.LogWarning("AuthToken is empty, attempting to acquire token.");
@@ -225,8 +225,8 @@ public class SalesAgentPluginApiService
                 
             }
         }
-        
-        //AuthToken = token;// Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
+        */
+        AuthToken = Environment.GetEnvironmentVariable("SALES_AGENT_PLUGIN_TOKEN");
         request.Headers.Add("Authorization", $"Bearer {AuthToken}");
 
         _logger.LogInformation("Sending request to Sales Agent Plugin API.");
