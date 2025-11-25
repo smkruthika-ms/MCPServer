@@ -93,9 +93,9 @@ public sealed class SalesChatPluginTool
     }
     */
     [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
-    public async Task<string> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<object> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
-        return await CallAgent("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        return await CallAgentObject("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
     
 
