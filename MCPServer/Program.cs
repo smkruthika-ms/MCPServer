@@ -13,7 +13,7 @@ builder.Services.AddHttpContextAccessor();
 // Add services to the container.
 builder.Services
     .AddMcpServer()
-    .WithHttpTransport(options =>
+    .WithHttpTransport( options => 
     {
         // Set session timeout to 30 minutes
         options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -23,20 +23,33 @@ builder.Services
         
 
         // Configure per-session options
-        options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
+        options.ConfigureSessionOptions = async (httpContext, serverOptions, cancellationToken) =>
         {
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpContext.Request.Headers)
             {
-                if (!header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-                {
+                
                     sanitizedHeaders[header.Key] = header.Value.ToString();
-                }
+                
+            }
+            httpContext.Request.EnableBuffering();
+            string bodyText;
+            using (var reader = new StreamReader(
+                       httpContext.Request.Body,
+                       encoding: System.Text.Encoding.UTF8,
+                       detectEncodingFromByteOrderMarks: false,
+                       bufferSize: 1024,
+                       leaveOpen: true))
+            {
+                bodyText = await reader.ReadToEndAsync(cancellationToken);
+                httpContext.Request.Body.Position = 0;
             }
 
-            sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
-            
-            
+
+            sanitizedHeaders["body"] =  bodyText;
+            var headersJson = JsonSerializer.Serialize(sanitizedHeaders);
+
+
             // Extract token from Authorization header
             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
             if (!string.IsNullOrEmpty(authHeader))
@@ -52,7 +65,7 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
+                    Name = headersJson,//JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -60,14 +73,14 @@ builder.Services
             {
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = "tokenless",
+                    Name = headersJson,
                     //JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
 
 
-            return Task.CompletedTask;
+            await Task.CompletedTask;
         };
 
         // Custom session handling
@@ -85,6 +98,7 @@ builder.Services
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
+builder.Services.AddSingleton<WidgetResourceService>();
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -130,7 +144,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// Add CORS for MCP Inspector
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowMcpInspector", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
+
+// Load widget assets on startup
+var widgetService = app.Services.GetRequiredService<WidgetResourceService>();
+await widgetService.LoadWidgetAssetsAsync();
+
+// Enable CORS before authentication
+app.UseCors("AllowMcpInspector");
 
 app.UseAuthentication();
 app.UseAuthorization();

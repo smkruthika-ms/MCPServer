@@ -1,0 +1,21 @@
+{
+  "name": "mcpserver-widget",
+  "version": "1.0.0",
+  "description": "ChatGPT widget for MCP Server sales tools",
+  "scripts": {
+    "build": "npm run build:js && npm run build:css",
+    "build:js": "esbuild src/index.tsx --bundle --outfile=dist/widget.js --format=esm --jsx=automatic",
+    "build:css": "esbuild src/styles.css --bundle --outfile=dist/widget.css",
+    "watch": "npm run build -- --watch"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
