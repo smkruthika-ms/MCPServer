@@ -1,3 +1,4 @@
+using MCPServer.Gateway;
 using MCPServer.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -94,11 +95,17 @@ builder.Services
         };
     })
     .WithTools<SalesChatPluginTool>()
-    .WithTools<ExtractContextTool>();
+    .WithTools<ExtractContextTool>()
+    .WithTools<GatewayProxyTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
 builder.Services.AddSingleton<WidgetResourceService>();
+
+// Register Gateway services
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<GatewayLoggingService>();
+builder.Services.AddSingleton<McpGatewayService>();
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -160,6 +167,10 @@ var app = builder.Build();
 // Load widget assets on startup
 var widgetService = app.Services.GetRequiredService<WidgetResourceService>();
 await widgetService.LoadWidgetAssetsAsync();
+
+// Initialize Gateway service and discover downstream servers
+var gatewayService = app.Services.GetRequiredService<McpGatewayService>();
+await gatewayService.InitializeAsync();
 
 // Enable CORS before authentication
 app.UseCors("AllowMcpInspector");

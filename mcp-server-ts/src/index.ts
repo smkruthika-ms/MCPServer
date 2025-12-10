@@ -193,158 +193,27 @@ app.get('/mcp/sse', async (req: Request, res: Response) => {
 
   // Extract token from Authorization header
   const authHeader = req.headers.authorization;
-  let token = '';
   if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.substring(7);
+    const token = authHeader.substring(7);
     console.log('🔑 Token extracted from Authorization header');
+    // Store token for this session if needed
   }
 
-  // Handle client disconnect
-  req.on('close', () => {
-    console.log('📤 SSE connection closed');
-  });
-
-  try {
-    // Create a new server instance for this connection
-    const sessionServer = new Server(
-      {
-        name: 'mcp-server-widget',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-          resources: {},
-        },
-      }
-    );
-
-    // Register handlers for this session
-    sessionServer.setRequestHandler(ListResourcesRequestSchema, async () => {
-      return {
-        resources: [createWidgetResource()],
-      };
-    });
-
-    sessionServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      const uri = request.params.uri;
-
-      if (uri === 'ui://widget/sales-dashboard.html') {
-        const widgetHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sales Dashboard Widget</title>
-  <style>${widgetCss}</style>
-</head>
-<body>
-  <div id="widget-root"></div>
-  <script type="module">${widgetJs}</script>
-</body>
-</html>`;
-
-        return {
-          contents: [
-            {
-              uri,
-              mimeType: 'text/html+skybridge',
-              text: widgetHtml,
-            },
-          ],
-        };
-      }
-
-      throw new Error(`Resource not found: ${uri}`);
-    });
-
-    sessionServer.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [widgetTool],
-      };
-    });
-
-    sessionServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-
-      if (name === 'widget_sales_chat') {
-        const { plannerKey, message, token: argToken } = args as {
-          plannerKey: string;
-          message: string;
-          token?: string;
-        };
-
-        try {
-          const result = await salesAgentApiService.chatWithAgent(
-            plannerKey,
-            message,
-            argToken || token || ''
-          );
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  structuredContent: {
-                    summary: `Chat response for planner: ${plannerKey}`,
-                    message: message,
-                    result: result,
-                  },
-                  _meta: {
-                    outputTemplate: 'ui://widget/sales-dashboard.html',
-                    widgetAccessible: true,
-                    widgetDescription: 'Interactive sales chat response',
-                    detailedData: {
-                      plannerKey,
-                      userMessage: message,
-                      apiResponse: result,
-                      timestamp: new Date().toISOString(),
-                    },
-                  },
-                }),
-              },
-            ],
-          };
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  error: true,
-                  message: `Failed to chat with agent: ${errorMessage}`,
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-
-      throw new Error(`Tool not found: ${name}`);
-    });
-
-    const transport = new SSEServerTransport('/mcp/messages', res);
-    await sessionServer.connect(transport);
-    console.log('✅ MCP server connected via SSE');
-  } catch (error) {
-    console.error('❌ Error connecting MCP server:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to establish SSE connection' });
-    }
-  }
+  const transport = new SSEServerTransport('/mcp/messages', res);
+  await mcpServer.connect(transport);
 });
 
 // MCP POST endpoint for messages
 app.post('/mcp/messages', async (req: Request, res: Response) => {
-  console.log('📥 Received MCP message:', req.body);
+  console.log('📥 Received MCP message');
   
-  // The SSEServerTransport should handle this
-  // Just acknowledge receipt
-  res.status(202).send();
+  // For now, return a simple response
+  // In production, you'd need to implement proper session management
+  res.json({ 
+    jsonrpc: '2.0',
+    result: { message: 'Use SSE endpoint at GET /mcp/sse' },
+    id: req.body.id
+  });
 });
 
 // Health check endpoint
