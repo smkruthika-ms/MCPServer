@@ -94,9 +94,10 @@ builder.Services
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<SalesChatPluginTool>()
-    .WithTools<ExtractContextTool>()
+    //.WithTools<SalesChatPluginTool>()
+    //.WithTools<ExtractContextTool>()
     .WithTools<GatewayProxyTool>();
+    //.WithTools<DiscoverDownstreamToolsTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();

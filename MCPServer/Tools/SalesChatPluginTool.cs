@@ -57,7 +57,7 @@ public sealed class SalesChatPluginTool
             return $"Error: {ex.Message}";
         }
     }
-
+    
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
     public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
     {
@@ -85,19 +85,20 @@ public sealed class SalesChatPluginTool
     {   
         return await CallAgent("GetAccountTeamM365", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
+    
     /*
     [McpServerTool, Description("Data related to Agreement, Enrollment, deal book and license details for a specific agreement Id/agreement Number or Account/TPID. It provides detailed insights on various elements of agreement such as - applied discounts, price details, quantity, related SKUs details, license estates, amendment details, product family details.")]
     public async Task<string> GetAgreementDetails(string message)
     {
         return await CallAgent("Commercial Executive Plugin", message);
     }
-    */
+    
     [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
     public async Task<object> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         return await CallAgentObject("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
-    
+    */
 
     
 }
