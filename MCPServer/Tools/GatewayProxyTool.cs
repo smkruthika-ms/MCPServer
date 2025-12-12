@@ -27,6 +27,14 @@ public sealed class GatewayProxyTool
         [Description("Name of the tool to call")] string toolName,
         [Description("JSON string of arguments to pass to the tool")] string argumentsJson)
     {
+        var requestId = Guid.NewGuid().ToString();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // 🚀 START LOG - Gateway proxy tool invoked
+        _logger.LogInformation(
+            "[Gateway Proxy START] RequestId={RequestId} | Tool={ToolName} | ArgumentsJson={ArgumentsJson}",
+            requestId, toolName, argumentsJson);
+
         try
         {
             // Parse arguments
@@ -41,12 +49,26 @@ public sealed class GatewayProxyTool
 
             // Call the downstream tool
             var result = await _gatewayService.CallToolAsync(toolName, arguments!, token);
+            stopwatch.Stop();
 
-            return JsonSerializer.Serialize(result);
+            var resultJson = JsonSerializer.Serialize(result);
+
+            // ✅ END LOG - Success
+            _logger.LogInformation(
+                "[Gateway Proxy END] RequestId={RequestId} | Tool={ToolName} | Status=Success | Duration={DurationMs}ms | ResultLength={ResultLength}",
+                requestId, toolName, stopwatch.ElapsedMilliseconds, resultJson.Length);
+
+            return resultJson;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Gateway] Error calling downstream tool {ToolName}", toolName);
+            stopwatch.Stop();
+
+            // ❌ END LOG - Error
+            _logger.LogError(
+                "[Gateway Proxy END] RequestId={RequestId} | Tool={ToolName} | Status=Error | Duration={DurationMs}ms | Error={ErrorMessage}",
+                requestId, toolName, stopwatch.ElapsedMilliseconds, ex.Message);
+
             return JsonSerializer.Serialize(new { error = ex.Message });
         }
     }

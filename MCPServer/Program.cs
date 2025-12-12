@@ -183,6 +183,17 @@ app.UseAuthorization();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
+// Start background task for periodic performance metrics logging
+var gatewayLoggingService = app.Services.GetRequiredService<GatewayLoggingService>();
+_ = Task.Run(async () =>
+{
+    while (true)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(5)); // Log every 5 minutes
+        gatewayLoggingService.LogPerformanceMetrics();
+    }
+});
+
 // Middleware to log Authorization header and decode JWT claims for debugging
 
 

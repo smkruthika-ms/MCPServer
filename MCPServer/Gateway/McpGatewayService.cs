@@ -112,6 +112,18 @@ public class McpGatewayService
         object arguments,
         string? authToken = null)
     {
+        var requestId = Guid.NewGuid().ToString();
+        var mcpUrl = server.GetMcpUrl();
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var networkStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // 🚀 START LOG - Request initiated
+        _logger.LogInformation(
+            "[Gateway Request START] RequestId={RequestId} | Tool={ToolName} | Server={ServerName} | Url={Url} | Method=tools/call | Arguments={Arguments}",
+            requestId, toolName, server.Name, mcpUrl, JsonSerializer.Serialize(arguments));
+
+        networkStopwatch.Stop(); // Stop for overhead calculation
+
         var httpClient = _httpClientFactory.CreateClient();
         
         // Add MCP Streamable HTTP headers - accept both JSON and SSE
@@ -127,24 +139,11 @@ public class McpGatewayService
             httpClient.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        // Add auth token if provided
-        /*
-        if (!string.IsNullOrEmpty(authToken))
-        {
-            httpClient.DefaultRequestHeaders.Authorization = 
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authToken);
-        }
-*/
-        var mcpUrl = server.GetMcpUrl();
-        
-        _logger.LogDebug("[Gateway] Calling {ToolName} on {ServerName} at {Url}", 
-            toolName, server.Name, mcpUrl);
-
         // Build MCP JSON-RPC request for tools/call
         var mcpRequest = new
         {
             jsonrpc = "2.0",
-            id = Guid.NewGuid().ToString(),
+            id = requestId,
             method = "tools/call",
             @params = new
             {
@@ -153,49 +152,55 @@ public class McpGatewayService
             }
         };
 
-        var requestJson = System.Text.Json.JsonSerializer.Serialize(mcpRequest);
-        _logger.LogInformation("[Gateway] Request payload: {Payload}", requestJson);
+        var requestJson = JsonSerializer.Serialize(mcpRequest);
 
         var content = new StringContent(
             requestJson,
             System.Text.Encoding.UTF8,
             "application/json");
 
+        // Start network timer
+        networkStopwatch.Restart();
         var response = await httpClient.PostAsync(mcpUrl, content);
-        
-        // Log response details before checking status
         var responseBody = await response.Content.ReadAsStringAsync();
-        _logger.LogInformation("[Gateway] Response status: {StatusCode}, Body: {Body}", 
-            response.StatusCode, responseBody);
+        networkStopwatch.Stop();
+        
+        var networkDuration = networkStopwatch.ElapsedMilliseconds;
+        
+        // Parse SSE format if response starts with "event:"
+        string jsonResponse = responseBody;
+        if (responseBody.StartsWith("event:"))
+        {
+            var lines = responseBody.Split('\n');
+            var dataLine = lines.FirstOrDefault(l => l.StartsWith("data:"));
+            if (dataLine != null)
+            {
+                jsonResponse = dataLine.Substring(5).Trim();
+            }
+        }
+
+        var mcpResponse = JsonSerializer.Deserialize<McpJsonRpcResponse>(jsonResponse);
+        
+        totalStopwatch.Stop();
+        var totalDuration = totalStopwatch.ElapsedMilliseconds;
+        var gatewayOverhead = totalDuration - networkDuration;
+        
+        // Log overhead for performance tracking
+        _loggingService.LogGatewayOverhead(gatewayOverhead);
+        
+        // ✅ END LOG - Response received
+        _logger.LogInformation(
+            "[Gateway Request END] RequestId={RequestId} | Tool={ToolName} | Server={ServerName} | Url={Url} | StatusCode={StatusCode} | TotalDuration={TotalDuration}ms | NetworkDuration={NetworkDuration}ms | GatewayOverhead={GatewayOverhead}ms | HasError={HasError} | ResponseLength={ResponseLength}",
+            requestId, toolName, server.Name, mcpUrl, (int)response.StatusCode, totalDuration, networkDuration, gatewayOverhead, mcpResponse?.Error != null, responseBody.Length);
         
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
                 $"Response status code does not indicate success: {(int)response.StatusCode} ({response.StatusCode}). Response: {responseBody}");
         }
-
-        // Parse SSE format if response starts with "event:"
-        string jsonResponse = responseBody;
-        if (responseBody.StartsWith("event:"))
-        {
-            // Extract JSON from SSE format: "event: message\ndata: {json}\n\n"
-            var lines = responseBody.Split('\n');
-            var dataLine = lines.FirstOrDefault(l => l.StartsWith("data:"));
-            if (dataLine != null)
-            {
-                jsonResponse = dataLine.Substring(5).Trim(); // Remove "data:" prefix
-                _logger.LogInformation("[Gateway] Extracted JSON from SSE: {Json}", jsonResponse);
-            }
-        }
-
-        var mcpResponse = System.Text.Json.JsonSerializer.Deserialize<McpJsonRpcResponse>(jsonResponse);
         
         if (mcpResponse?.Error != null)
         {
-            _logger.LogWarning("[Gateway] MCP Error from {Server}: {Message} (Code: {Code})", 
-                server.Name, mcpResponse.Error.Message, mcpResponse.Error.Code);
-            
-            // Return the error details as a structured object instead of throwing
             return new
             {
                 error = true,
@@ -206,7 +211,6 @@ public class McpGatewayService
             };
         }
 
-        // Return the full result object (which contains content array)
         return mcpResponse?.Result ?? new McpResult { Content = new List<McpContent>() };
     }
 
