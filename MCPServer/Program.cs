@@ -136,7 +136,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             "api://auth-eae1983a-8db2-4228-9ea9-633684a2ee22/972bf644-79c8-4dbc-9921-5040af077272",
             "afe3816a-f889-4e0f-8760-d131fa9116cf",
             "972bf644-79c8-4dbc-9921-5040af077272",
-            "api://auth-10003cd8-923e-4b58-b208-1a2bebdb7a4e/972bf644-79c8-4dbc-9921-5040af077272"
+            "api://auth-10003cd8-923e-4b58-b208-1a2bebdb7a4e/972bf644-79c8-4dbc-9921-5040af077272",
+            "api://auth-e131b976-f269-41a8-9c05-7484a0f5022c/5d437e13-722e-4a8d-8f4f-3158cf570e94"
         },
         ValidateLifetime = true
     };
@@ -175,8 +176,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
