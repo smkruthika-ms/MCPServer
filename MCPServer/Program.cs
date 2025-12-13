@@ -1,6 +1,7 @@
 using MCPServer.Gateway;
 using MCPServer.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
 using System.IdentityModel.Tokens.Jwt;
@@ -11,6 +12,90 @@ using WebSearchMCPServer.Tools;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpContextAccessor();
+
+// 🔐 Add JWT Bearer Authentication for incoming tokens from Teams/Copilot
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(options =>
+    {
+        // Configure token validation options
+        builder.Configuration.Bind("AzureAd", options);
+        
+        // Customize token validation to accept multiple audiences
+        options.TokenValidationParameters.ValidateAudience = true;
+        options.TokenValidationParameters.ValidAudiences = new[]
+        {
+            "api://5d437e13-722e-4a8d-8f4f-3158cf570e94", // Your gateway app ID
+            "5d437e13-722e-4a8d-8f4f-3158cf570e94", // Gateway app ID without api://
+            "https://microsoft.onmicrosoft.com/copilotnonprod",
+            "00000003-0000-0000-c000-000000000000",
+            "bb893c22-978d-4cd4-a6f7-bb6cc0d6e6ce",
+            "api://5d437e13-722e-4a8d-8f4f-3158cf570e21f8",
+            "https://apihub.azure.com",
+            "96ff4394-9197-43aa-b393-6a41652e21f8",
+            "https://mcpservernet.azurewebsites.net",
+            "54a6fe0f-d031-4f90-9c54-d607a980122d",
+            "api://b1ba5194-92ca-46b8-9d7a-38d6a9053f6b",
+            "api://1aaf894a-0fdb-487c-ace5-cc90e423ff5c",
+            "b1ba5194-92ca-46b8-9d7a-38d6a9053f6b",
+            "f15bee8d-71c5-461c-b87d-ffef42876fad",
+            "e9555580-b18d-4b00-9ff8-e0f54159da6d",
+            "77795025-5b1d-41a2-a77a-e73beb44a9da",
+            "c6894284-ffe9-46fe-b977-f7d275ad4ff9",
+            "b84e16bc-c715-4f04-8d01-4de55ce8119d",
+            "http://msxsalescopilot01.crm.dynamics.com/",
+            "api://auth-eae1983a-8db2-4228-9ea9-633684a2ee22/972bf644-79c8-4dbc-9921-5040af077272",
+            "afe3816a-f889-4e0f-8760-d131fa9116cf",
+            "972bf644-79c8-4dbc-9921-5040af077272",
+            "api://auth-10003cd8-923e-4b58-b208-1a2bebdb7a4e/972bf644-79c8-4dbc-9921-5040af077272",
+            "api://auth-e131b976-f269-41a8-9c05-7484a0f5022c/5d437e13-722e-4a8d-8f4f-3158cf570e94"
+        };
+        
+        options.TokenValidationParameters.ValidateIssuer = true;
+        options.TokenValidationParameters.ValidateLifetime = true;
+        options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+        
+        // Add logging for debugging token validation issues
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogError(
+                    "[Auth] ❌ JWT Authentication failed | Exception={Exception} | Token={Token}",
+                    context.Exception.Message,
+                    context.Request.Headers["Authorization"].ToString());
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                var token = context.SecurityToken as JwtSecurityToken;
+                logger.LogInformation(
+                    "[Auth] ✅ JWT Token validated | Audience={Audience} | Issuer={Issuer} | AppId={AppId}",
+                    token?.Audiences.FirstOrDefault(),
+                    token?.Issuer,
+                    token?.Claims.FirstOrDefault(c => c.Type == "appid")?.Value);
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning(
+                    "[Auth] ⚠️ JWT Challenge | Error={Error} | ErrorDescription={ErrorDescription}",
+                    context.Error,
+                    context.ErrorDescription);
+                return Task.CompletedTask;
+            }
+        };
+    }, 
+    options =>
+    {
+        builder.Configuration.Bind("AzureAd", options);
+    });
+
+// Register OBO Token Service
+builder.Services.AddSingleton<OboTokenService>();
+
 // Add services to the container.
 builder.Services
     .AddMcpServer()
@@ -66,7 +151,7 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = headersJson,//JsonSerializer.Serialize(sanitizedHeaders),
+                    Name = token,//JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
             }
@@ -74,7 +159,7 @@ builder.Services
             {
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = headersJson,
+                    Name = "",
                     //JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
@@ -108,7 +193,12 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<GatewayLoggingService>();
 builder.Services.AddSingleton<McpGatewayService>();
 
+// Note: JWT authentication is configured above with AddMicrosoftIdentityWebApi
+// This replaces the manual AddJwtBearer configuration
+// Keeping the old configuration below for reference but it's now handled by Microsoft.Identity.Web
 
+/*
+// OLD JWT Configuration - Now handled by AddMicrosoftIdentityWebApi
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
    
     .AddJwtBearer(options =>
@@ -149,6 +239,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateLifetime = true
     };
 });
+*/
 
 builder.Services.AddAuthorization();
 
@@ -194,12 +285,23 @@ _ = Task.Run(async () =>
     }
 });
 
+// Start background task for OBO token cache cleanup
+var oboTokenService = app.Services.GetRequiredService<OboTokenService>();
+_ = Task.Run(async () =>
+{
+    while (true)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(10)); // Cleanup every 10 minutes
+        oboTokenService.CleanupExpiredTokens();
+    }
+});
+
 // Middleware to log Authorization header and decode JWT claims for debugging
 
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>

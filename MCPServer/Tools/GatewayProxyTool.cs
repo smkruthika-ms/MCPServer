@@ -51,14 +51,82 @@ public sealed class GatewayProxyTool
             var result = await _gatewayService.CallToolAsync(toolName, arguments!, token);
             stopwatch.Stop();
 
-            var resultJson = JsonSerializer.Serialize(result);
+            // Extract text from MCP response structure to avoid double-wrapping
+            string responseText;
+            
+            if (result is JsonElement jsonElement)
+            {
+                // Handle JsonElement (common case)
+                if (jsonElement.TryGetProperty("content", out var contentProp) && 
+                    contentProp.ValueKind == JsonValueKind.Array &&
+                    contentProp.GetArrayLength() > 0)
+                {
+                    var firstContent = contentProp[0];
+                    if (firstContent.TryGetProperty("text", out var textProp))
+                    {
+                        responseText = textProp.GetString() ?? JsonSerializer.Serialize(result);
+                        _logger.LogDebug(
+                            "[Gateway Proxy] Extracted text from content array | Length={Length}",
+                            responseText.Length);
+                    }
+                    else
+                    {
+                        // No text property, serialize the whole content item
+                        responseText = JsonSerializer.Serialize(firstContent);
+                        _logger.LogDebug("[Gateway Proxy] Using serialized first content item");
+                    }
+                }
+                else
+                {
+                    // No content array, return as-is
+                    responseText = JsonSerializer.Serialize(result);
+                    _logger.LogDebug("[Gateway Proxy] No content array found, using full result");
+                }
+            }
+            else
+            {
+                // Try dynamic property access for other object types
+                try
+                {
+                    var resultJson = JsonSerializer.Serialize(result);
+                    var doc = JsonDocument.Parse(resultJson);
+                    
+                    if (doc.RootElement.TryGetProperty("content", out var contentProp) &&
+                        contentProp.ValueKind == JsonValueKind.Array &&
+                        contentProp.GetArrayLength() > 0)
+                    {
+                        var firstContent = contentProp[0];
+                        if (firstContent.TryGetProperty("text", out var textProp))
+                        {
+                            responseText = textProp.GetString() ?? resultJson;
+                            _logger.LogDebug(
+                                "[Gateway Proxy] Extracted text from parsed JSON | Length={Length}",
+                                responseText.Length);
+                        }
+                        else
+                        {
+                            responseText = JsonSerializer.Serialize(firstContent);
+                        }
+                    }
+                    else
+                    {
+                        responseText = resultJson;
+                    }
+                }
+                catch
+                {
+                    // Fallback to full serialization
+                    responseText = JsonSerializer.Serialize(result);
+                    _logger.LogDebug("[Gateway Proxy] Using fallback full serialization");
+                }
+            }
 
             // ✅ END LOG - Success
             _logger.LogInformation(
                 "[Gateway Proxy END] RequestId={RequestId} | Tool={ToolName} | Status=Success | Duration={DurationMs}ms | ResultLength={ResultLength}",
-                requestId, toolName, stopwatch.ElapsedMilliseconds, resultJson.Length);
+                requestId, toolName, stopwatch.ElapsedMilliseconds, responseText.Length);
 
-            return resultJson;
+            return responseText;
         }
         catch (Exception ex)
         {

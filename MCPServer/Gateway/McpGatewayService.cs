@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MCPServer.Services;
 
 namespace MCPServer.Gateway;
 
@@ -15,6 +16,7 @@ public class McpGatewayService
     private readonly IConfiguration _configuration;
     private readonly GatewayLoggingService _loggingService;
     private readonly ILogger<McpGatewayService> _logger;
+    private readonly OboTokenService _oboTokenService;
     
     private readonly List<DownstreamMcpServer> _downstreamServers = new();
     private readonly Dictionary<string, DownstreamMcpServer> _toolRegistry = new();
@@ -23,12 +25,14 @@ public class McpGatewayService
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         GatewayLoggingService loggingService,
-        ILogger<McpGatewayService> logger)
+        ILogger<McpGatewayService> logger,
+        OboTokenService oboTokenService)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _loggingService = loggingService;
         _logger = logger;
+        _oboTokenService = oboTokenService;
     }
 
     /// <summary>
@@ -133,13 +137,131 @@ public class McpGatewayService
         httpClient.DefaultRequestHeaders.Accept.Add(
             new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
         
+        // 🔐 OBO TOKEN ACQUISITION - Check if OBO is enabled for this server
+        var serverConfig = _configuration
+            .GetSection("McpGateway:DownstreamServers")
+            .Get<List<DownstreamServerConfig>>()?
+            .FirstOrDefault(s => s.Name == server.Name);
+
+        if (serverConfig?.OboConfig?.Enabled == true)
+        {
+            _logger.LogInformation(
+                "[Gateway] OBO authentication enabled for {ServerName} | UseManagedIdentity={UseMI}",
+                server.Name,
+                serverConfig.OboConfig.UseManagedIdentity);
+                
+            try
+            {
+                // Get incoming token from the original request
+                var incomingToken = _oboTokenService.GetIncomingToken();
+                if (string.IsNullOrEmpty(incomingToken))
+                {
+                    _logger.LogError(
+                        "[Gateway] ❌ No incoming token found for {ServerName}. OBO is enabled but cannot proceed.",
+                        server.Name);
+                    _logger.LogWarning(
+                        "[OBO] No incoming token found for {ServerName}. OBO is enabled but cannot proceed without token.",
+                        server.Name);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "[Gateway] ✅ Incoming token extracted | Length={Length}",
+                        incomingToken.Length);
+                    
+                    // Acquire OBO token for downstream server
+                    var oboToken = await _oboTokenService.GetAccessTokenAsync(server.Name, incomingToken);
+                    
+                    // Validate the OBO token before sending
+                    if (string.IsNullOrWhiteSpace(oboToken))
+                    {
+                        _logger.LogError(
+                            "[Gateway] ❌ OBO token is null or empty for {ServerName}. Cannot proceed with request.",
+                            server.Name);
+                        throw new InvalidOperationException(
+                            $"Failed to acquire valid OBO token for {server.Name}. Token is null or empty.");
+                    }
+                    
+                    // Basic JWT format validation (should have 3 parts separated by dots)
+                    var tokenParts = oboToken.Split('.');
+                    if (tokenParts.Length != 3)
+                    {
+                        _logger.LogError(
+                            "[Gateway] ❌ OBO token is not a valid JWT format for {ServerName} | Parts={Parts} | Token={Token}",
+                            server.Name,
+                            tokenParts.Length,
+                            oboToken);
+                        throw new InvalidOperationException(
+                            $"OBO token for {server.Name} is not in valid JWT format. Expected 3 parts, got {tokenParts.Length}.");
+                    }
+                    
+                    _logger.LogInformation(
+                        "[Gateway] ✅ OBO token validated | Parts={Parts} | Length={Length}",
+                        tokenParts.Length,
+                        oboToken.Length);
+                    
+                    // Add Authorization header with OBO token
+                    httpClient.DefaultRequestHeaders.Authorization = 
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", oboToken);
+                    
+                    // ⚠️ SECURITY WARNING: Full token logging enabled for debugging - REMOVE IN PRODUCTION
+                    _logger.LogWarning(
+                        "[OBO] 🔓 SENDING OBO TOKEN to {ServerName} (FULL): {Token}",
+                        server.Name,
+                        oboToken);
+                    
+                    _logger.LogInformation(
+                        "[OBO] Added OBO token to request for {ServerName}",
+                        server.Name);
+                    
+                    _logger.LogInformation(
+                        "[Gateway] ✅ Authorization header set with OBO token for {ServerName}",
+                        server.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[OBO] ❌ Failed to acquire OBO token for {ServerName} | ExceptionType={ExceptionType} | Message={Message}",
+                    server.Name,
+                    ex.GetType().Name,
+                    ex.Message);
+                
+                // STOP HERE - Don't send request with invalid/missing OBO token
+                _logger.LogError(
+                    "[Gateway] ❌ Aborting request to {ServerName} - OBO token acquisition failed",
+                    server.Name);
+                throw; // Re-throw to prevent sending request without valid auth
+            }
+        }
+        else if (!string.IsNullOrEmpty(authToken))
+        {
+            // Fallback: Use provided authToken if no OBO
+            httpClient.DefaultRequestHeaders.Authorization = 
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authToken);
+            
+            _logger.LogInformation(
+                "[Gateway] Using provided auth token for {ServerName} (OBO not enabled)",
+                server.Name);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "[Gateway] No authentication configured for {ServerName}",
+                server.Name);
+        }
+        
         // Add custom headers
         foreach (var header in server.Headers)
         {
             httpClient.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        // Build MCP JSON-RPC request for tools/call
+        networkStopwatch.Start(); // Restart for network timing
+
+        _logger.LogInformation(
+            "[Gateway] Creating MCP request | Tool={ToolName} | Method=tools/call",
+            toolName);
         var mcpRequest = new
         {
             jsonrpc = "2.0",
