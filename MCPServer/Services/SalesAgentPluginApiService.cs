@@ -181,8 +181,9 @@ public class SalesAgentPluginApiService
             AccessToken accessToken = await credential.GetTokenAsync(new TokenRequestContext(scopes));
             AuthToken = accessToken.Token;
             _logger.LogInformation("Token successfully acquired 1. {count}", AuthToken);
-
-            var confidentialClient = ConfidentialClientApplicationBuilder.Create("972bf644-79c8-4dbc-9921-5040af077272")
+            try
+            {
+                var confidentialClient = ConfidentialClientApplicationBuilder.Create("5d437e13-722e-4a8d-8f4f-3158cf570e94")
            .WithClientAssertion(() =>
            {
                var managedIdentityApp = ManagedIdentityApplicationBuilder
@@ -197,13 +198,11 @@ public class SalesAgentPluginApiService
            .Build();
 
 
-            var userAssertion = new UserAssertion(token);
+            var userAssertion = new UserAssertion(token.Trim());
 
-            try
-            {
-                var result1 =  await confidentialClient
-                .AcquireTokenOnBehalfOf(new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user" }, new UserAssertion(token))
-                .ExecuteAsync();
+            var result1 =  await confidentialClient
+            .AcquireTokenOnBehalfOf(new[] { "api://5d437e13-722e-4a8d-8f4f-3158cf570e94/access_as_user" }, userAssertion)
+            .ExecuteAsync();
 
                 _logger.LogInformation("OBO token acquired successfully. Token Expiry: {ExpiryDate}", result1.ExpiresOn);
                // return result.AccessToken;
