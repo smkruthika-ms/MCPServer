@@ -20,12 +20,6 @@ public class DownstreamMcpServer
 
     // MCP endpoint path (default is /sse for JSON-RPC)
     public string McpEndpoint { get; set; } = "/";
-    
-    // Target App ID (audience) for this downstream server - used for Managed Identity token acquisition
-    public string? TargetAppId { get; set; }
-    
-    // Optional: Custom scopes (defaults to api://{TargetAppId}/.default)
-    public List<string>? Scopes { get; set; }
 
     public string GetMcpUrl() => $"{BaseUrl.TrimEnd('/')}{McpEndpoint}";
 }

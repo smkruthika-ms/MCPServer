@@ -300,8 +300,8 @@ _ = Task.Run(async () =>
 
 
 // Configure the HTTP request pipeline.
-//app.MapMcp();
-app.MapMcp().RequireAuthorization();
+app.MapMcp();
+//app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>

@@ -1,0 +1,191 @@
+{
+  "$schema": "https://aka.ms/json-schemas/copilot-extensions/v2.1/plugin.schema.json",
+  "schema_version": "v2.4",
+  "name_for_human": "Sales Home UAT",
+  "description_for_human": "Router to Sales Home MCP tools across multiple downstream servers",
+  "namespace": "mscopilot",
+  "functions": [
+    {
+      "name": "call_downstream_tool",
+      "description": "Route to any available downstream MCP tool by ID with structured parameters",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "toolId": {
+            "type": "string",
+            "description": "Fully qualified downstream tool ID",
+            "enum": [
+              "winwireSucessStories",
+              "customer_engagement_hub_copilot",
+              "process_rvc_request_for_opportunity",
+              "get_leading_prompts",
+              "get_account_competitor",
+              "summarize_account_profile",
+              "get_account_team",
+              "get_account_news"
+            ]
+          },
+          "params": {
+            "description": "Arguments for the selected tool - structure depends on toolId",
+            "oneOf": [
+              { "$ref": "#/$defs/winwireSucessStoriesParams" },
+              { "$ref": "#/$defs/customerEngagementHubParams" },
+              { "$ref": "#/$defs/processRvcParams" },
+              { "$ref": "#/$defs/getLeadingPromptsParams" },
+              { "$ref": "#/$defs/getAccountCompetitorParams" },
+              { "$ref": "#/$defs/summarizeAccountProfileParams" },
+              { "$ref": "#/$defs/getAccountTeamParams" },
+              { "$ref": "#/$defs/getAccountNewsParams" }
+            ]
+          }
+        },
+        "required": ["toolId", "params"],
+        "$defs": {
+          "winwireSucessStoriesParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt, e.g. 'Show Win Wires for Insurance'"
+              }
+            },
+            "required": ["userPrompt"]
+          },
+          "customerEngagementHubParams": {
+            "type": "object",
+            "properties": {
+              "body": {
+                "type": "string",
+                "description": "Request body as JSON string"
+              }
+            },
+            "required": ["body"]
+          },
+          "processRvcParams": {
+            "type": "object",
+            "properties": {
+              "user_prompt": {
+                "type": "string",
+                "description": "Prompt with Opportunity ID (format: 7-XXXXXXXXX)"
+              },
+              "conversation_id": {
+                "type": "string",
+                "description": "Conversation ID"
+              },
+              "user_oid": {
+                "type": "string",
+                "description": "User OID"
+              },
+              "ctx": {
+                "type": "string",
+                "description": "Context (e.g., fastmcp:trace-id)"
+              },
+              "request_source": {
+                "type": "string",
+                "description": "Request source"
+              }
+            },
+            "required": ["user_prompt"]
+          },
+          "getLeadingPromptsParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt"
+              },
+              "context": {
+                "type": "string",
+                "description": "Context information"
+              }
+            },
+            "required": ["userPrompt", "context"]
+          },
+          "getAccountCompetitorParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt"
+              },
+              "context": {
+                "type": "string",
+                "description": "Context information"
+              }
+            },
+            "required": ["userPrompt", "context"]
+          },
+          "summarizeAccountProfileParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt"
+              },
+              "context": {
+                "type": "string",
+                "description": "Context information"
+              }
+            },
+            "required": ["userPrompt", "context"]
+          },
+          "getAccountTeamParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt"
+              },
+              "context": {
+                "type": "string",
+                "description": "Context information"
+              }
+            },
+            "required": ["userPrompt", "context"]
+          },
+          "getAccountNewsParams": {
+            "type": "object",
+            "properties": {
+              "userPrompt": {
+                "type": "string",
+                "description": "User prompt"
+              },
+              "context": {
+                "type": "string",
+                "description": "Context information"
+              }
+            },
+            "required": ["userPrompt", "context"]
+          }
+        }
+      },
+      "capabilities": {
+        "response_semantics": {
+          "properties": {
+            "thumbnail_url": "$.thumbnail_url",
+            "title": "$.title",
+            "url": "$.url",
+            "subtitle": "$.subtitle",
+            "template_selector": "$.template_selector"
+          },
+          "data_path": "$.outputs"
+        }
+      },
+      "x-isConsequential": false
+    }
+  ],
+  "runtimes": [
+    {
+      "type": "RemoteMCPServer",
+      "spec": {
+        "url": "https://mcpservernet.azurewebsites.net/mcp",
+        "enable_dynamic_discovery": false
+      },
+      "auth": {
+        "type": "OAuthPluginVault",
+        "reference_id": "NzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3IyNlMTMxYjk3Ni1mMjY5LTQxYTgtOWMwNS03NDg0YTBmNTAyMmM="
+      },
+      "run_for_functions": ["call_downstream_tool"]
+    }
+  ]
+}

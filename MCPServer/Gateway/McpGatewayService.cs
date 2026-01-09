@@ -74,13 +74,25 @@ public class McpGatewayService
     /// <summary>
     /// Call a tool by routing to the appropriate downstream server
     /// </summary>
-    public async Task<object> CallToolAsync(string toolName, object arguments, string? authToken = null)
+    public async Task<object> CallToolAsync(string toolName, object arguments, string? authToken = null, string? serverName = null)
     {
         // Trim whitespace from tool name
         toolName = toolName?.Trim() ?? string.Empty;
         
         // Find which server owns this tool
-        if (!_toolRegistry.TryGetValue(toolName, out var targetServer))
+        DownstreamMcpServer? targetServer;
+        
+        if (!string.IsNullOrEmpty(serverName))
+        {
+            // If serverName is explicitly provided (router pattern), use it
+            targetServer = _downstreamServers.FirstOrDefault(s => s.Name == serverName);
+            if (targetServer == null)
+            {
+                throw new InvalidOperationException($"Server '{serverName}' not found in gateway");
+            }
+            _logger.LogInformation("[Gateway] Using explicitly specified server | ServerName={ServerName}", serverName);
+        }
+        else if (!_toolRegistry.TryGetValue(toolName, out targetServer))
         {
             throw new InvalidOperationException($"Tool '{toolName}' not found in gateway registry");
         }
