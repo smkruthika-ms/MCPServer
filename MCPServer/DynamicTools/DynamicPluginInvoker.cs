@@ -24,8 +24,9 @@ internal class DynamicPluginInvoker
 
     /// <summary>
     /// Invokes the plugin via ExecutionHostService with the required MCP tool parameters
+    /// Returns the response body as a string (not HttpResponseData object to avoid serialization issues)
     /// </summary>
-    public async Task<HttpResponseData> InvokeAsync(
+    public async Task<string> InvokeAsync(
         McpServer thisServer,
         [Description("The user prompt or query")] string userPrompt,
         [Description("Additional context for the plugin")] string context,
@@ -50,9 +51,7 @@ internal class DynamicPluginInvoker
         if (string.IsNullOrEmpty(plannerKey))
         {
             _logger?.LogError("PlannerKey is null or empty for plugin {PluginName}", _plugin.PluginName);
-            var errorResponse = new HttpResponseData(System.Net.HttpStatusCode.BadRequest);
-            errorResponse.SetBodyAsString($"{{\"error\": \"PlannerKey is null or empty for plugin {_plugin.PluginName}\"}}");
-            return errorResponse;
+            return $"{{\"error\": \"PlannerKey is null or empty for plugin {_plugin.PluginName}\"}}";
         }
         
         // Invoke via ExecutionHostService using the new convenience method
@@ -65,6 +64,8 @@ internal class DynamicPluginInvoker
         
         _logger?.LogInformation("Plugin invocation completed with status: {StatusCode}", result.StatusCode);
         
-        return result;
+        // Return just the response body as a string (not the HttpResponseData object)
+        // This avoids JSON serialization issues with Stream property
+        return result.BodyAsString ?? $"{{\"error\": \"No response body. Status: {result.StatusCode}\"}}";
     }
 }

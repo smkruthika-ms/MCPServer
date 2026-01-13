@@ -114,26 +114,27 @@ public class ExecutionHostService
 
             _logger.LogInformation("ExecutionHost API response status: {StatusCode}", response.StatusCode);
 
-            // Read the response content
-            var responseContent = await response.Content.ReadAsStreamAsync(cancellationToken);
+            // Read the response content as string (not stream) to avoid serialization issues
+            var responseBodyText = await response.Content.ReadAsStringAsync(cancellationToken);
             
-            // Log response body if available
-            if (response.Content.Headers.ContentLength > 0)
-            {
-                responseContent.Seek(0, System.IO.SeekOrigin.Begin);
-                using (var reader = new System.IO.StreamReader(responseContent, leaveOpen: true))
-                {
-                    var responseBodyText = await reader.ReadToEndAsync(cancellationToken);
-                    _logger.LogInformation("ExecutionHost API response body: {ResponseBody}", responseBodyText);
-                    responseContent.Seek(0, System.IO.SeekOrigin.Begin);
-                }
-            }
+            _logger.LogInformation("ExecutionHost API response body: {ResponseBody}", responseBodyText);
 
             // Create HttpResponseData to match Azure Functions format
             var responseData = new HttpResponseData((HttpStatusCode)response.StatusCode)
             {
-                Body = responseContent
+                BodyAsString = responseBodyText
             };
+
+            // Convert string body to stream for Body property if needed by downstream code
+            if (!string.IsNullOrEmpty(responseBodyText))
+            {
+                var stream = new MemoryStream();
+                var writer = new System.IO.StreamWriter(stream);
+                await writer.WriteAsync(responseBodyText);
+                await writer.FlushAsync();
+                stream.Seek(0, System.IO.SeekOrigin.Begin);
+                responseData.Body = stream;
+            }
 
             // Copy response headers
             foreach (var header in response.Content.Headers)
