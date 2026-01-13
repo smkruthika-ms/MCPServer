@@ -20,7 +20,7 @@ public sealed class SalesChatPluginTool
     private readonly SalesAgentPluginApiService _salesAgentPluginApiService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<SalesChatPluginTool> _logger;
-    private readonly IMcpServer _mcpServer;
+    private readonly McpServer _mcpServer;
 
     public SalesChatPluginTool(SalesAgentPluginApiService salesAgentPluginApiService, IHttpContextAccessor httpContextAccessor, ILogger<SalesChatPluginTool> logger)
     {
@@ -59,7 +59,7 @@ public sealed class SalesChatPluginTool
     }
 
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
+    public async Task<string> SummarizeAccountProfile( McpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
     {
         _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
         return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
@@ -68,20 +68,20 @@ public sealed class SalesChatPluginTool
 
 
     [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<string> GetAccountNews(McpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Fetching account news for input: {Input}", userPrompt, context);
         return await CallAgent("DraupAccountNews", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
-    public async Task<string> GetAccountCompetitor(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<string> GetAccountCompetitor(McpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         return await CallAgent("Account Competitor", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Fetches and displays the list of account team members working on an account")]
-    public async Task<string> GetAccountTeam(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<string> GetAccountTeam(McpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {   
         return await CallAgent("GetAccountTeamM365", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
@@ -93,7 +93,7 @@ public sealed class SalesChatPluginTool
     }
     */
     [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
-    public async Task<string> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    public async Task<string> GetLeadingPrompts(McpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         return await CallAgent("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }

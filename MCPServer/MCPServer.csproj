@@ -16,11 +16,11 @@
     <PackageReference Include="Microsoft.Graph.Core" Version="3.2.4" />
     <PackageReference Include="Microsoft.Identity.Web" Version="3.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.5" />
-    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.1" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.1" />
-    <PackageReference Include="ModelContextProtocol.Core" Version="0.3.0-preview.1" />
 
 
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol.AspNetCore\ModelContextProtocol.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol.Core\ModelContextProtocol.Core.csproj" />
+    <ProjectReference Include="..\..\mcp-csharp-sdk\src\ModelContextProtocol\ModelContextProtocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>

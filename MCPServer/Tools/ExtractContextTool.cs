@@ -20,7 +20,7 @@ public sealed class ExtractContextTool
     private readonly SalesAgentPluginApiService _salesAgentPluginApiService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ExtractContextTool> _logger;
-    private readonly IMcpServer _mcpServer;
+    private readonly McpServer _mcpServer;
 
     public ExtractContextTool(SalesAgentPluginApiService salesAgentPluginApiService, IHttpContextAccessor httpContextAccessor, ILogger<ExtractContextTool> logger)
     {
@@ -47,7 +47,7 @@ public sealed class ExtractContextTool
     }
 
     [McpServerTool, Description("Extract context about an account")]
-    public async Task<string> ExtractContextForAccount(IMcpServer thisServer, string input, CancellationToken cancellationToken)
+    public async Task<string> ExtractContextForAccount(McpServer thisServer, string input, CancellationToken cancellationToken)
     {
         return Environment.GetEnvironmentVariable("TPID") ?? "784852";
         //return await CallAgent("Account Summary", input, thisServer.ServerOptions.ServerInfo.Name);

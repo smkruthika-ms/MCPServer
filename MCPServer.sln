@@ -4,6 +4,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.13.36105.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCPServer", "MCPServer\MCPServer.csproj", "{78A1E434-8FA8-4EA1-A585-AEA01E80B912}"
+	ProjectSection(ProjectDependencies) = postProject
+		{643BD8CA-831E-5482-A1D6-680635AC7E7F} = {643BD8CA-831E-5482-A1D6-680635AC7E7F}
+		{675863AE-0D32-AEA9-1C21-97F6F5020D7D} = {675863AE-0D32-AEA9-1C21-97F6F5020D7D}
+		{95BA3F4F-9178-047B-A685-EDF2C0B7CA63} = {95BA3F4F-9178-047B-A685-EDF2C0B7CA63}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelContextProtocol", "..\mcp-csharp-sdk\src\ModelContextProtocol\ModelContextProtocol.csproj", "{643BD8CA-831E-5482-A1D6-680635AC7E7F}"
 EndProject
