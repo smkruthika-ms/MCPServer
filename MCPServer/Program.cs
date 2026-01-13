@@ -76,11 +76,13 @@ builder.Services
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<SalesChatPluginTool>()
-    .WithTools<ExtractContextTool>();
+    .WithTools<ExtractContextTool>()
+    .WithTools<ExecutionHostTools>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
+builder.Services.AddHttpClient<ExecutionHostService>();
+builder.Services.AddSingleton<ExecutionHostService>();
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -139,8 +141,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
