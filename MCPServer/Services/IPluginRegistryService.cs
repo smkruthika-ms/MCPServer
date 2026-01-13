@@ -1,0 +1,32 @@
+using MCPServer.Models;
+
+namespace MCPServer.Services;
+
+/// <summary>
+/// Service for managing dynamic plugin registration from Dataverse
+/// </summary>
+public interface IPluginRegistryService
+{
+    /// <summary>
+    /// Fetches all active plugins from Dataverse
+    /// </summary>
+    Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Refreshes the cached plugin list
+    /// </summary>
+    Task RefreshPluginsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Invokes a plugin with the given parameters
+    /// </summary>
+    Task<object?> InvokePluginAsync(
+        string pluginName,
+        Dictionary<string, object?> parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a specific plugin by name
+    /// </summary>
+    Task<PluginInfo?> GetPluginByNameAsync(string pluginName, CancellationToken cancellationToken = default);
+}

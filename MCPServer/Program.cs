@@ -1,4 +1,5 @@
 using MCPServer.Services;
+using MCPServer.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
@@ -10,6 +11,11 @@ using WebSearchMCPServer.Tools;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();  // Add memory cache for plugin registry caching
+builder.Services.AddSingleton<SalesAgentPluginApiService>();
+builder.Services.AddHttpClient<ExecutionHostService>();
+builder.Services.AddSingleton<ExecutionHostService>();
+
 // Add services to the container.
 builder.Services
     .AddMcpServer()
@@ -49,7 +55,7 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = JsonSerializer.Serialize(sanitizedHeaders),
+                    Name = JsonSerializer.Serialize(token),
                     Version = "1.0.0"
                 };
             }
@@ -77,12 +83,7 @@ builder.Services
         };
     })
     .WithTools<ExtractContextTool>()
-    .WithTools<ExecutionHostTools>();
-
-builder.Services.AddSingleton<DataverseApiService>();
-builder.Services.AddSingleton<SalesAgentPluginApiService>();
-builder.Services.AddHttpClient<ExecutionHostService>();
-builder.Services.AddSingleton<ExecutionHostService>();
+    .WithDynamicPlugins(builder.Services);  // Add dynamic tools from Dataverse plugins
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -117,6 +118,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             "b84e16bc-c715-4f04-8d01-4de55ce8119d",
             "api://5d437e13-722e-4a8d-8f4f-3158cf570e94",
             "http://msxsalescopilot01.crm.dynamics.com/",
+            "api://auth-3961aecd-bb0c-4b61-a86e-05df8631ff35/5d437e13-722e-4a8d-8f4f-3158cf570e94",
             "api://auth-eae1983a-8db2-4228-9ea9-633684a2ee22/972bf644-79c8-4dbc-9921-5040af077272",
             "afe3816a-f889-4e0f-8760-d131fa9116cf",
             "972bf644-79c8-4dbc-9921-5040af077272",
@@ -141,8 +143,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-app.MapMcp();
-//app.MapMcp().RequireAuthorization();
+//app.MapMcp();
+app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>

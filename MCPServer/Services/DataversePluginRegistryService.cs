@@ -1,0 +1,213 @@
+using MCPServer.Models;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+namespace MCPServer.Services;
+
+/// <summary>
+/// Implementation of plugin registry that fetches from Dataverse OData API
+/// </summary>
+public class DataversePluginRegistryService : IPluginRegistryService
+{
+    private readonly HttpClient _httpClient;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<DataversePluginRegistryService> _logger;
+    private readonly DataverseApiService _dataverseService;
+    private const string PluginsCacheKey = "mcp_plugins_cache";
+    private const int CacheDurationMinutes = 60;
+
+    public DataversePluginRegistryService(
+        HttpClient httpClient,
+        IMemoryCache cache,
+        ILogger<DataversePluginRegistryService> logger,
+        DataverseApiService dataverseService)
+    {
+        _httpClient = httpClient;
+        _cache = cache;
+        _logger = logger;
+        _dataverseService = dataverseService;
+    }
+
+    /// <summary>
+    /// Fetches all active plugins from Dataverse
+    /// </summary>
+    public async Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(CancellationToken cancellationToken = default)
+    {
+        // Check cache first
+        if (_cache.TryGetValue(PluginsCacheKey, out IEnumerable<PluginInfo>? cachedPlugins))
+        {
+            _logger.LogInformation("Returning plugins from cache");
+            return cachedPlugins ?? [];
+        }
+
+        try
+        {
+            // Fetch from Dataverse
+            var plugins = await FetchPluginsFromDataverseAsync(cancellationToken);
+            var activePlugins = plugins.Where(p => p.IsActive).ToList();
+
+            _logger.LogInformation("Fetched {PluginCount} active plugins from Dataverse", activePlugins.Count);
+
+            // Cache the results
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(CacheDurationMinutes));
+            _cache.Set(PluginsCacheKey, (IEnumerable<PluginInfo>)activePlugins, cacheOptions);
+
+            return activePlugins;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching plugins from Dataverse");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the cached plugin list
+    /// </summary>
+    public async Task RefreshPluginsAsync(CancellationToken cancellationToken = default)
+    {
+        _cache.Remove(PluginsCacheKey);
+        _ = await GetAllPluginsAsync(cancellationToken);
+        _logger.LogInformation("Plugin cache refreshed");
+    }
+
+    /// <summary>
+    /// Gets a specific plugin by name
+    /// </summary>
+    public async Task<PluginInfo?> GetPluginByNameAsync(string pluginName, CancellationToken cancellationToken = default)
+    {
+        var plugins = await GetAllPluginsAsync(cancellationToken);
+        return plugins.FirstOrDefault(p =>
+            p.PluginName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true ||
+            p.FunctionName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    /// <summary>
+    /// Invokes a plugin with the given parameters
+    /// </summary>
+    public async Task<object?> InvokePluginAsync(
+        string pluginName,
+        Dictionary<string, object?> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var plugin = await GetPluginByNameAsync(pluginName, cancellationToken);
+        if (plugin == null)
+        {
+            _logger.LogWarning("Plugin not found: {PluginName}", pluginName);
+            throw new InvalidOperationException($"Plugin '{pluginName}' not found");
+        }
+
+        if (!plugin.IsActive)
+        {
+            _logger.LogWarning("Plugin is not active: {PluginName}", pluginName);
+            throw new InvalidOperationException($"Plugin '{pluginName}' is not active");
+        }
+
+        try
+        {
+            var endpoint = plugin.GetPluginEndpoint();
+            _logger.LogInformation("Invoking plugin {PluginName} at {Endpoint}", pluginName, endpoint);
+
+            var request = new PluginInvocationRequest
+            {
+                FunctionName = plugin.FunctionName,
+                Input = parameters
+            };
+
+            var jsonContent = new StringContent(
+                JsonSerializer.Serialize(request),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(endpoint, jsonContent, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Plugin invocation failed with status {StatusCode}: {ErrorContent}",
+                    response.StatusCode, errorContent);
+                throw new InvalidOperationException(
+                    $"Plugin invocation failed: {response.StatusCode} - {errorContent}");
+            }
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var pluginResponse = JsonSerializer.Deserialize<PluginInvocationResponse>(responseContent);
+
+            _logger.LogInformation("Plugin {PluginName} invoked successfully", pluginName);
+            return pluginResponse?.Output ?? responseContent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error invoking plugin {PluginName}", pluginName);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Fetches plugins from the Dataverse OData API
+    /// </summary>
+    private async Task<IEnumerable<PluginInfo>> FetchPluginsFromDataverseAsync(CancellationToken cancellationToken)
+    {
+        // Construct the OData query
+        const string pluginQuery = "msp_plugins?$select=" +
+            "msp_pluginid,msp_pluginname,msp_friendlyname,msp_description," +
+            "msp_inputparameter,msp_outputparameter,msp_functionname," +
+            "msp_basehttpendpoint,msp_methodendpoint,msp_httpmethodtype," +
+            "statecode,statuscode,msp_pluginjson,msp_skillname,msp_ispluginactionable";
+
+        try
+        {
+            // Use Dataverse API service to make the request
+            var response = await _httpClient.GetAsync(
+                $"https://pie.crm.dynamics.com/api/data/v9.0/{pluginQuery}",
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Failed to fetch plugins from Dataverse: {StatusCode}. Using mock data.", response.StatusCode);
+                
+                // Return mock data when API fails (e.g., due to missing auth)
+                return GetMockPlugins();
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var pluginResponse = JsonSerializer.Deserialize<PluginListResponse>(content);
+
+            return pluginResponse?.Value ?? [];
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error fetching plugins from Dataverse, using mock data");
+            // Return mock data on HTTP errors
+            return GetMockPlugins();
+        }
+    }
+
+    /// <summary>
+    /// Returns mock plugin data for testing when Dataverse API is unavailable
+    /// </summary>
+    private static IEnumerable<PluginInfo> GetMockPlugins()
+    {
+        return new[]
+        {
+            new PluginInfo
+            {
+                PluginId = "e2b171d9-b892-f011-b4cc-6045bdd69937",
+                PluginName = "AccountV2",
+                FriendlyName = "Account V2",
+                Description = "This plugin provides account profiles (name, TPID, opportunities, priorities, estimated revenue) and general info when no other action applies.",
+                BaseHttpEndpoint = "https://salescopilotpluginsnonprod.microsoft.com/uat/v2/skillstudio/",
+                MethodEndpoint = "accountplugin",
+                FunctionName = "GetAccountV2",
+                PlannerKey = "Account_V2",
+                InputParameter = "Extracted AccountId(GUID), Account Name (Company name), or TPID (Top parent ID), or all",
+                OutputParameter = "Summarized information about profile/highlights of an account.",
+                StateCode = 0,
+                StatusCode = 1
+            }
+        };
+    }
+}
