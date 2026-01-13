@@ -32,7 +32,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
     /// <summary>
     /// Fetches all active plugins from Dataverse
     /// </summary>
-    public async Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         // Check cache first
         if (_cache.TryGetValue(PluginsCacheKey, out IEnumerable<PluginInfo>? cachedPlugins))
@@ -43,9 +43,10 @@ public class DataversePluginRegistryService : IPluginRegistryService
 
         try
         {
-            // Fetch from Dataverse
-            var plugins = await FetchPluginsFromDataverseAsync(cancellationToken);
-            var activePlugins = plugins.Where(p => p.IsActive).ToList();
+            // Fetch from plugin API
+            var plugins = await FetchPluginsFromDataverseAsync(token, cancellationToken);
+            var activePlugins = plugins//.Where(p => p.IsActive)
+            .ToList();
 
             _logger.LogInformation("Fetched {PluginCount} active plugins from Dataverse", activePlugins.Count);
 
@@ -66,19 +67,19 @@ public class DataversePluginRegistryService : IPluginRegistryService
     /// <summary>
     /// Refreshes the cached plugin list
     /// </summary>
-    public async Task RefreshPluginsAsync(CancellationToken cancellationToken = default)
+    public async Task RefreshPluginsAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         _cache.Remove(PluginsCacheKey);
-        _ = await GetAllPluginsAsync(cancellationToken);
+        _ = await GetAllPluginsAsync(token, cancellationToken);
         _logger.LogInformation("Plugin cache refreshed");
     }
 
     /// <summary>
     /// Gets a specific plugin by name
     /// </summary>
-    public async Task<PluginInfo?> GetPluginByNameAsync(string pluginName, CancellationToken cancellationToken = default)
+    public async Task<PluginInfo?> GetPluginByNameAsync(string pluginName, string? token = null, CancellationToken cancellationToken = default)
     {
-        var plugins = await GetAllPluginsAsync(cancellationToken);
+        var plugins = await GetAllPluginsAsync(token, cancellationToken);
         return plugins.FirstOrDefault(p =>
             p.PluginName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true ||
             p.FunctionName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true);
@@ -92,19 +93,19 @@ public class DataversePluginRegistryService : IPluginRegistryService
         Dictionary<string, object?> parameters,
         CancellationToken cancellationToken = default)
     {
-        var plugin = await GetPluginByNameAsync(pluginName, cancellationToken);
+        var plugin = await GetPluginByNameAsync(pluginName, null, cancellationToken);
         if (plugin == null)
         {
             _logger.LogWarning("Plugin not found: {PluginName}", pluginName);
             throw new InvalidOperationException($"Plugin '{pluginName}' not found");
         }
-
+/*
         if (!plugin.IsActive)
         {
             _logger.LogWarning("Plugin is not active: {PluginName}", pluginName);
             throw new InvalidOperationException($"Plugin '{pluginName}' is not active");
         }
-
+*/
         try
         {
             var endpoint = plugin.GetPluginEndpoint();
@@ -146,41 +147,62 @@ public class DataversePluginRegistryService : IPluginRegistryService
     }
 
     /// <summary>
-    /// Fetches plugins from the Dataverse OData API
+    /// Fetches plugins from the Plugin API endpoint
     /// </summary>
-    private async Task<IEnumerable<PluginInfo>> FetchPluginsFromDataverseAsync(CancellationToken cancellationToken)
+    private async Task<IEnumerable<PluginInfo>> FetchPluginsFromDataverseAsync(string? token = null, CancellationToken cancellationToken = default)
     {
-        // Construct the OData query
-        const string pluginQuery = "msp_plugins?$select=" +
-            "msp_pluginid,msp_pluginname,msp_friendlyname,msp_description," +
-            "msp_inputparameter,msp_outputparameter,msp_functionname," +
-            "msp_basehttpendpoint,msp_methodendpoint,msp_httpmethodtype," +
-            "statecode,statuscode,msp_pluginjson,msp_skillname,msp_ispluginactionable";
-
         try
         {
-            // Use Dataverse API service to make the request
-            var response = await _httpClient.GetAsync(
-                $"https://pie.crm.dynamics.com/api/data/v9.0/{pluginQuery}",
-                cancellationToken);
+            // Create a new HttpClient instance for this request to avoid header conflicts
+            using var client = new HttpClient();
+            
+            // Add authorization header if token is provided
+            if (!string.IsNullOrEmpty(token))
+            {
+                var cleanToken = token;
+                if (cleanToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanToken = cleanToken.Substring(7); // Remove "Bearer " (7 characters)
+                }
+                cleanToken = cleanToken.Trim();
+                
+                if (cleanToken.Length > 0)
+                {
+                    _logger.LogInformation("Adding Authorization header to plugin API request");
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("No token provided for plugin API request");
+            }
+
+            // Call the plugin API endpoint
+            const string pluginApiUrl = "https://func-appcopilot-int-eus.azurewebsites.net/api/plugins";
+            _logger.LogInformation("Fetching plugins from: {PluginApiUrl}", pluginApiUrl);
+            
+            var response = await client.GetAsync(pluginApiUrl, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Failed to fetch plugins from Dataverse: {StatusCode}. Using mock data.", response.StatusCode);
+                _logger.LogWarning("Failed to fetch plugins from API: {StatusCode}. Using mock data. Error: {ErrorContent}", 
+                    response.StatusCode, errorContent);
                 
-                // Return mock data when API fails (e.g., due to missing auth)
+                // Return mock data when API fails
                 return GetMockPlugins();
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogInformation("Received plugin API response: {ResponseLength} characters", content.Length);
+            
             var pluginResponse = JsonSerializer.Deserialize<PluginListResponse>(content);
 
             return pluginResponse?.Value ?? [];
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "HTTP error fetching plugins from Dataverse, using mock data");
+            _logger.LogError(ex, "HTTP error fetching plugins from API, using mock data");
             // Return mock data on HTTP errors
             return GetMockPlugins();
         }

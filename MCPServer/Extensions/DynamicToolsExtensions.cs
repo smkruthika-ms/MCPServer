@@ -44,8 +44,16 @@ public static class DynamicToolsExtensions
                 
                 logger.LogInformation("Starting dynamic plugin loading...");
                 
+                // Get token from builder options if available
+                string? token = null;
+                if (builder is IMcpServerBuilder mcpBuilder)
+                {
+                    // Try to get token from ServerOptions (will be set by the time plugins are loaded)
+                    logger.LogInformation("Getting token for plugin API request...");
+                }
+                
                 // Load plugins synchronously (blocking on async)
-                var plugins = registry.GetAllPluginsAsync(CancellationToken.None).GetAwaiter().GetResult();
+                var plugins = registry.GetAllPluginsAsync(token, CancellationToken.None).GetAwaiter().GetResult();
                 
                 logger.LogInformation("Found {PluginCount} plugins", plugins.Count());
                 
