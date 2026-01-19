@@ -209,9 +209,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             Console.WriteLine($"[API CALL] Success! Received {content.Length} characters from API");
-            Console.WriteLine($"[API CALL] ========== FULL API RESPONSE START ==========");
-            Console.WriteLine(content);
-            Console.WriteLine($"[API CALL] ========== FULL API RESPONSE END ==========");
+  
             _logger.LogInformation("Received plugin API response: {ResponseLength} characters", content.Length);
             
             Console.WriteLine($"[API CALL] Attempting to deserialize as PluginListResponse...");
@@ -228,10 +226,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 {
                     Console.WriteLine($"[API CALL] Response object details:");
                     Console.WriteLine($"  - Plugins: {pluginCount} items");
-                    foreach (var plugin in plugins)
-                    {
-                        Console.WriteLine($"    * {plugin.PluginName} ({plugin.FunctionName})");
-                    }
+                    
                 }
             }
             else

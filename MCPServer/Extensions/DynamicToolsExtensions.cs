@@ -31,8 +31,8 @@ public static class DynamicToolsExtensions
         // Add HTTP client for plugin invocation  
         services.AddHttpClient<DataversePluginRegistryService>();
         
-        // Register the dynamic provider as SCOPED (per-request)
-        services.AddScoped<DynamicMcpToolProvider>();
+        // Register the dynamic provider as TRANSIENT (fresh instance each time it's requested)
+        services.AddTransient<DynamicMcpToolProvider>();
 
         return builder;
     }

@@ -103,7 +103,7 @@ builder.Services
         };
     })
     .WithTools<ExtractContextTool>()
-    .WithTools<DynamicMcpToolProvider>()  // Add dynamic tools from Dataverse plugins (loaded per-request)
+    .WithTools<DynamicMcpToolProvider>()
     .WithDynamicPlugins(builder.Services);  // Register dynamic plugin services
 
 
@@ -198,7 +198,10 @@ app.Use(async (context, next) =>
     try
     {
         var toolCount = provider.Count();  // This triggers GetEnumerator() and loads all tools
-        Console.WriteLine($"[MIDDLEWARE] Tools enumeration complete - {toolCount} tools available");
+        Console.WriteLine($"[MIDDLEWARE] Tools enumeration complete - {toolCount} tools available at {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff}");
+        
+        // Store the tool count in the HttpContext items so we can access it later
+        context.Items["DynamicToolCount"] = toolCount;
     }
     catch (Exception ex)
     {
@@ -206,6 +209,12 @@ app.Use(async (context, next) =>
     }
     
     await next();
+    
+    // Log after response to see if MCP framework used our tools
+    if (context.Items.TryGetValue("DynamicToolCount", out var count))
+    {
+        Console.WriteLine($"[MIDDLEWARE] Response complete - Had enumerated {count} dynamic tools");
+    }
 });
 
 // Example: Log startup
