@@ -166,8 +166,9 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 }
                 cleanToken = cleanToken.Trim();
                 
-                if (cleanToken.Length > 0)
+                if (cleanToken.Length > 2)
                 {
+                    cleanToken = cleanToken.Substring(1, cleanToken.Length - 2);
                     _logger.LogInformation("Adding Authorization header to plugin API request");
                     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
                 }
@@ -178,7 +179,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
             }
 
             // Call the plugin API endpoint
-            const string pluginApiUrl = "https://func-appcopilot-int-eus.azurewebsites.net/api/plugins";
+            const string pluginApiUrl = "https://salescopilotskeusuat.azurewebsites.net/api/plugins";
             _logger.LogInformation("Fetching plugins from: {PluginApiUrl}", pluginApiUrl);
             
             var response = await client.GetAsync(pluginApiUrl, cancellationToken);
@@ -204,7 +205,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             _logger.LogError(ex, "HTTP error fetching plugins from API, using mock data");
             // Return mock data on HTTP errors
-            return GetMockPlugins();
+            return [];//GetMockPlugins();
         }
     }
 
