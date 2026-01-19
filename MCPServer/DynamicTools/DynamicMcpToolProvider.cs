@@ -15,42 +15,58 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 {
     private readonly IPluginRegistryService _pluginRegistry;
     private readonly ILogger<DynamicMcpToolProvider> _logger;
-    private List<McpServerTool>? _cachedTools;
+    private readonly AuthTokenContext? _tokenContext;
+    // DO NOT CACHE between requests - load fresh tools for each request
 
     public DynamicMcpToolProvider(
         IPluginRegistryService pluginRegistry,
-        ILogger<DynamicMcpToolProvider> logger)
+        ILogger<DynamicMcpToolProvider> logger,
+        AuthTokenContext? tokenContext = null)
     {
         _pluginRegistry = pluginRegistry;
         _logger = logger;
+        _tokenContext = tokenContext;
+        var tokenValue = tokenContext?.Token;
+        Console.WriteLine($"[NEW REQUEST] DynamicMcpToolProvider created - Token: {(!string.IsNullOrEmpty(tokenValue) ? "PRESENT" : "MISSING")}");
+        _logger.LogInformation("[NEW REQUEST] DynamicMcpToolProvider created - Token: {TokenStatus}", !string.IsNullOrEmpty(tokenValue) ? "PRESENT" : "MISSING");
     }
 
     /// <summary>
-    /// Returns the enumerator of dynamically created tools
+    /// Returns the enumerator of dynamically created tools - called per request
     /// </summary>
     public IEnumerator<McpServerTool> GetEnumerator()
     {
-        // Load tools synchronously (called during server startup)
+        Console.WriteLine("[TOOLS] GetEnumerator called - LOADING TOOLS NOW");
+        var token = _tokenContext?.Token;
+        Console.WriteLine($"[TOOLS] Token available: {(!string.IsNullOrEmpty(token) ? "YES ✓" : "NO ✗")}");
+        _logger.LogInformation("[TOOLS] GetEnumerator called - Token: {HasToken}", !string.IsNullOrEmpty(token));
+        
+        // Load FRESH tools every time (not cached)
         var tools = LoadToolsAsync().GetAwaiter().GetResult();
+        Console.WriteLine($"[TOOLS] GetEnumerator returning {tools.Count} tools");
+        
         return tools.GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     /// <summary>
-    /// Loads all plugins as MCP tools from Dataverse
+    /// Loads all plugins as MCP tools from Dataverse - FRESH PER REQUEST
     /// </summary>
     private async Task<List<McpServerTool>> LoadToolsAsync()
     {
-        if (_cachedTools != null)
-        {
-            return _cachedTools;
-        }
+        var token = _tokenContext?.Token;
+        Console.WriteLine($"[REQUEST] LoadToolsAsync: Loading FRESH tools with token: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
+        _logger.LogInformation("[REQUEST] LoadToolsAsync: Loading FRESH tools with token: {HasToken}", !string.IsNullOrEmpty(token));
 
         try
         {
-            var plugins = await _pluginRegistry.GetAllPluginsAsync();
+            Console.WriteLine($"[REQUEST] Calling GetAllPluginsAsync with token...");
+            var plugins = await _pluginRegistry.GetAllPluginsAsync(token);
             var tools = new List<McpServerTool>();
+            
+            Console.WriteLine($"[REQUEST] ✓ Fetched {plugins.Count()} plugins from Dataverse");
+            _logger.LogInformation("[REQUEST] ✓ Fetched {PluginCount} plugins from Dataverse", plugins.Count());
 
             foreach (var plugin in plugins)
             {
@@ -58,17 +74,19 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
                 if (tool != null)
                 {
                     tools.Add(tool);
-                    _logger.LogInformation("Created dynamic tool for plugin: {PluginName}", plugin.PluginName);
+                    Console.WriteLine($"[REQUEST]   ✓ Created tool: {plugin.PluginName}");
                 }
             }
 
-            _logger.LogInformation("Loaded {ToolCount} dynamic tools from plugins", tools.Count);
-            _cachedTools = tools;
+            Console.WriteLine($"[REQUEST] ✓ Successfully created {tools.Count} tools for this request");
+            _logger.LogInformation("[REQUEST] ✓ Successfully created {ToolCount} tools for this request", tools.Count);
             return tools;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading dynamic tools from plugins");
+            Console.WriteLine($"[REQUEST] ✗ ERROR in LoadToolsAsync: {ex.Message}");
+            Console.WriteLine($"[REQUEST] StackTrace: {ex.StackTrace}");
+            _logger.LogError(ex, "[REQUEST] Error loading dynamic tools from plugins");
             return [];
         }
     }
@@ -80,6 +98,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     {
         if (string.IsNullOrWhiteSpace(plugin.FunctionName))
         {
+            Console.WriteLine($"WARNING: Plugin {plugin.PluginName} has no function name");
             _logger.LogWarning("Plugin {PluginName} has no function name", plugin.PluginName);
             return null;
         }
@@ -104,23 +123,31 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 
             // Create the tool
             var tool = McpServerTool.Create(pluginInvoker.Method, options);
+            Console.WriteLine($"Successfully created tool for plugin: {plugin.PluginName}");
             return tool;
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"ERROR creating tool for plugin {plugin.PluginName}: {ex.Message}");
             _logger.LogError(ex, "Error creating tool for plugin {PluginName}", plugin.PluginName);
             return null;
         }
     }
 
     /// <summary>
-    /// Refreshes the cached tools (useful if plugins change in Dataverse)
+    /// Refreshes the dynamic tools (loads fresh tools for current request)
     /// </summary>
     public async Task RefreshToolsAsync()
     {
-        _cachedTools = null;
-        await _pluginRegistry.RefreshPluginsAsync();
+        var token = _tokenContext?.Token;
+        Console.WriteLine($"[REQUEST] RefreshToolsAsync called - Token: {(!string.IsNullOrEmpty(token) ? "YES ✓" : "NO ✗")}");
+        _logger.LogInformation("[REQUEST] RefreshToolsAsync called - Token: {HasToken}", !string.IsNullOrEmpty(token));
+        
+        // Refresh plugins with current request token
+        await _pluginRegistry.RefreshPluginsAsync(token);
         _ = await LoadToolsAsync();
-        _logger.LogInformation("Dynamic tools refreshed");
+        
+        Console.WriteLine("[REQUEST] Tools refreshed");
+        _logger.LogInformation("[REQUEST] Tools refreshed");
     }
 }

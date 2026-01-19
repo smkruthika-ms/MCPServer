@@ -1,5 +1,6 @@
 using MCPServer.Services;
 using MCPServer.Extensions;
+using MCPServer.DynamicTools;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
@@ -16,6 +17,9 @@ builder.Services.AddSingleton<SalesAgentPluginApiService>();
 builder.Services.AddHttpClient<ExecutionHostService>();
 builder.Services.AddSingleton<ExecutionHostService>();
 
+// Add scoped service for passing token across requests
+builder.Services.AddScoped<AuthTokenContext>();
+
 // Add services to the container.
 builder.Services
     .AddMcpServer()
@@ -31,6 +35,7 @@ builder.Services
         // Configure per-session options
         options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
         {
+            Console.WriteLine("=== REQUEST RECEIVED ===");
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpContext.Request.Headers)
             {
@@ -42,12 +47,14 @@ builder.Services
             
             // Extract token from Authorization header
             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
+            string? extractedToken = null;
             if (!string.IsNullOrEmpty(authHeader))
             {
-                var token = authHeader.Replace("Bearer ", "");
+                extractedToken = authHeader.Replace("Bearer ", "");
+                Console.WriteLine($"[REQUEST] Authorization header found, extracting token...");
 
                 var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(token);
+                var jwtToken = handler.ReadJwtToken(extractedToken);
 
                 var appId = jwtToken.Payload["appid"]?.ToString() ?? "";
                 var aud = jwtToken.Audiences != null ? string.Join(", ", jwtToken.Audiences) : "";
@@ -55,17 +62,30 @@ builder.Services
 
                 serverOptions.ServerInfo = new Implementation
                 {
-                    Name = JsonSerializer.Serialize(token),
+                    Name = JsonSerializer.Serialize(extractedToken),
                     Version = "1.0.0"
                 };
             }
             else
             {
+                Console.WriteLine($"[REQUEST] NO Authorization header found");
                 serverOptions.ServerInfo = new Implementation
                 {
                     Name = JsonSerializer.Serialize(sanitizedHeaders),
                     Version = "1.0.0"
                 };
+            }
+            
+            // Store token in scoped AuthTokenContext for use in plugin loading
+            try
+            {
+                var tokenContext = httpContext.RequestServices.GetRequiredService<AuthTokenContext>();
+                tokenContext.Token = extractedToken;
+                Console.WriteLine($"[REQUEST] Token stored in AuthTokenContext: {(!string.IsNullOrEmpty(extractedToken) ? "YES ✓" : "NO ✗")}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[REQUEST] ERROR storing token: {ex.Message}");
             }
 
 
@@ -83,7 +103,8 @@ builder.Services
         };
     })
     .WithTools<ExtractContextTool>()
-    .WithDynamicPlugins(builder.Services);  // Add dynamic tools from Dataverse plugins
+    .WithTools<DynamicMcpToolProvider>()  // Add dynamic tools from Dataverse plugins (loaded per-request)
+    .WithDynamicPlugins(builder.Services);  // Register dynamic plugin services
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -134,6 +155,58 @@ var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Middleware to extract and store token BEFORE DynamicMcpToolProvider is resolved
+app.Use(async (context, next) =>
+{
+    Console.WriteLine("[TOKEN MIDDLEWARE] Extracting token from Authorization header...");
+    var authHeader = context.Request.Headers["Authorization"].ToString();
+    string? extractedToken = null;
+    
+    if (!string.IsNullOrEmpty(authHeader))
+    {
+        extractedToken = authHeader.Replace("Bearer ", "");
+        Console.WriteLine($"[TOKEN MIDDLEWARE] Token extracted, storing in AuthTokenContext...");
+        
+        try
+        {
+            var tokenContext = context.RequestServices.GetRequiredService<AuthTokenContext>();
+            tokenContext.Token = extractedToken;
+            Console.WriteLine($"[TOKEN MIDDLEWARE] Token stored successfully ✓");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[TOKEN MIDDLEWARE] ERROR storing token: {ex.Message}");
+        }
+    }
+    else
+    {
+        Console.WriteLine($"[TOKEN MIDDLEWARE] NO Authorization header found");
+    }
+    
+    await next();
+});
+
+// Middleware to ensure DynamicMcpToolProvider is enumerated per-request (AFTER token is set)
+app.Use(async (context, next) =>
+{
+    Console.WriteLine("[MIDDLEWARE] Request pipeline - Triggering tool enumeration");
+    var provider = context.RequestServices.GetRequiredService<DynamicMcpToolProvider>();
+    Console.WriteLine("[MIDDLEWARE] DynamicMcpToolProvider resolved - forcing enumeration to load tools");
+    
+    // Force enumeration to trigger GetEnumerator() and load tools fresh
+    try
+    {
+        var toolCount = provider.Count();  // This triggers GetEnumerator() and loads all tools
+        Console.WriteLine($"[MIDDLEWARE] Tools enumeration complete - {toolCount} tools available");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[MIDDLEWARE] ERROR during tool enumeration: {ex.Message}");
+    }
+    
+    await next();
+});
 
 // Example: Log startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
