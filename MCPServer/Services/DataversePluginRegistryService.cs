@@ -105,7 +105,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
 */
         try
         {
-            var endpoint = plugin.GetPluginEndpoint();
+            var endpoint = "https://msxuat-fd-gxbmeya2c3gwbyhq.b02.azurefd.net/api/executionHost"+ $"/{plugin.PlannerKey}?api-version=1";
             _logger.LogInformation("Invoking plugin {PluginName} at {Endpoint}", pluginName, endpoint);
 
             // Build the request with inputs.text and inputs.text_3
