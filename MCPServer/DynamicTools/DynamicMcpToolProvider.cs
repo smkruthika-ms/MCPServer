@@ -125,8 +125,8 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
             Func<Dictionary<string, object?>, CancellationToken, Task<object?>> pluginInvoker =
                 async (args, ct) => 
                 {
-                    var userPrompt = args?.ContainsKey("text") == true ? args["text"]?.ToString() ?? "" : "";
-                    return await _pluginRegistry.InvokePluginAsync(plugin.PluginName!, userPrompt, token, ct);
+                    var inputs = args?.ContainsKey("inputs") == true ? args["inputs"]?.ToString() ?? "" : "";
+                    return await _pluginRegistry.InvokePluginAsync(plugin.PluginName!, inputs, token, ct);
                 };
 
             // Create tool options with metadata

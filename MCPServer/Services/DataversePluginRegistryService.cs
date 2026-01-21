@@ -86,7 +86,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
     /// </summary>
     public async Task<object?> InvokePluginAsync(
         string pluginName,
-        string userPrompt,
+        string inputs,
         string? token = null,
         CancellationToken cancellationToken = default)
     {
@@ -112,15 +112,11 @@ public class DataversePluginRegistryService : IPluginRegistryService
             var request = new PluginInvocationRequest
             {
                 FunctionName = plugin.FunctionName,
-                Inputs = new PluginInputs
-                {
-                    Text = userPrompt,
-                    Text3 = userPrompt
-                }
+                Inputs = JsonSerializer.Deserialize<PluginInputs>(inputs)
             };
             
-            _logger.LogInformation("Plugin invocation request - FunctionName: {FunctionName}, UserPrompt length: {PromptLength}", 
-                plugin.FunctionName, userPrompt?.Length ?? 0);
+            _logger.LogInformation("Plugin invocation request - FunctionName: {FunctionName}, Inputs length: {InputsLength}", 
+                plugin.FunctionName, request.ToString());
 
             var jsonContent = new StringContent(
                 JsonSerializer.Serialize(request),
@@ -200,7 +196,6 @@ public class DataversePluginRegistryService : IPluginRegistryService
                     _logger.LogInformation("Removed JSON quotes from token");
                 }
                 
-                _logger.LogInformation("Token length after cleaning: {Length}", cleanToken.Length);
                 
                 if (cleanToken.Length > 0)
                 {

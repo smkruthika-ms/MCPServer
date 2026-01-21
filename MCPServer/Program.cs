@@ -169,19 +169,19 @@ builder.Services
                         
                         // Extract inputs as a string
                         // The string will be used for both text and text_3 when calling the API
-                        string userPrompt = "";
+                        string inputs = "";
                         if (request.Params?.Arguments != null && 
                             request.Params.Arguments.TryGetValue("inputs", out var inputsElement))
                         {
                             // inputs is now a string
-                            userPrompt = inputsElement.GetString() ?? "";
+                            inputs = inputsElement.GetString() ?? "";
                         }
                         
-                        Console.WriteLine($"[HANDLER] CallToolHandler extracted userPrompt length: {userPrompt.Length}");
+                        Console.WriteLine($"[HANDLER] CallToolHandler extracted inputs length: {inputs.Length}");
                         
                         // Invoke the plugin - pass sessionToken securely via parameter
                         Console.WriteLine($"[HANDLER] CallToolHandler invoking with token length: {sessionToken?.Length ?? 0}");
-                        var result = await pluginRegistryForHandlers.InvokePluginAsync(toolName, userPrompt, sessionToken, ct);
+                        var result = await pluginRegistryForHandlers.InvokePluginAsync(toolName, inputs, sessionToken, ct);
                         var resultText = result?.ToString() ?? "null";
                         
                         Console.WriteLine($"[HANDLER] CallToolHandler completed for tool: {toolName}");

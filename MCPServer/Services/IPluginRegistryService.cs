@@ -22,7 +22,7 @@ public interface IPluginRegistryService
     /// </summary>
     Task<object?> InvokePluginAsync(
         string pluginName,
-        string userPrompt,
+        string inputs,
         string? token = null,
         CancellationToken cancellationToken = default);
 
