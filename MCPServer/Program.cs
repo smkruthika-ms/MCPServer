@@ -82,6 +82,20 @@ builder.Services
                 var tokenContext = httpContext.RequestServices.GetRequiredService<AuthTokenContext>();
                 tokenContext.Token = extractedToken;
                 Console.WriteLine($"[REQUEST] Token stored in AuthTokenContext: {(!string.IsNullOrEmpty(extractedToken) ? "YES ✓" : "NO ✗")}");
+                
+                // IMPORTANT: Also store token in the SINGLETON plugin registry for cross-scope access
+                // This ensures tools/list can access the token even when resolved in MCP's internal scope
+                var pluginRegistry = httpContext.RequestServices.GetRequiredService<IPluginRegistryService>();
+                if (!string.IsNullOrEmpty(extractedToken))
+                {
+                    pluginRegistry.CurrentToken = extractedToken;
+                    Console.WriteLine("[REQUEST] Token stored in singleton PluginRegistry.CurrentToken ✓");
+                    
+                    // Pre-populate plugin cache if we have a token
+                    Console.WriteLine("[REQUEST] Pre-loading plugins into cache...");
+                    var plugins = pluginRegistry.GetAllPluginsAsync(extractedToken).GetAwaiter().GetResult();
+                    Console.WriteLine($"[REQUEST] Pre-loaded {plugins.Count()} plugins into cache ✓");
+                }
             }
             catch (Exception ex)
             {
@@ -93,17 +107,17 @@ builder.Services
         };
 
         // Custom session handling
-        options.RunSessionHandler = (httpContext, mcpServer, cancellationToken) =>
+        options.RunSessionHandler = async (httpContext, mcpServer, cancellationToken) =>
         {
             // Perform custom logic before running the session
             Console.WriteLine($"Starting session for user: {httpContext.User.Identity?.Name}");
 
             // Run the session
-            return mcpServer.RunAsync(cancellationToken);
+            await mcpServer.RunAsync(cancellationToken);
         };
     })
     .WithTools<ExtractContextTool>()
-    .WithTools<DynamicMcpToolProvider>()
+    .WithTools<DynamicMcpToolProvider>()  // Dynamic tools from Dataverse plugins
     .WithDynamicPlugins(builder.Services);  // Register dynamic plugin services
 
 

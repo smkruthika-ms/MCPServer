@@ -23,10 +23,12 @@ public static class DynamicToolsExtensions
         services.AddMemoryCache();
 
         // Register Dataverse API service (required by DataversePluginRegistryService)
-        services.AddScoped<DataverseApiService>();
+        // Use Singleton so the HttpClient is reused
+        services.AddSingleton<DataverseApiService>();
 
-        // Register the plugin registry service as scoped
-        services.AddScoped<IPluginRegistryService, DataversePluginRegistryService>();
+        // Register the plugin registry service as SINGLETON so cache is shared across all requests
+        // This is critical - the cache must persist across requests for tools/list to work
+        services.AddSingleton<IPluginRegistryService, DataversePluginRegistryService>();
 
         // Add HTTP client for plugin invocation  
         services.AddHttpClient<DataversePluginRegistryService>();

@@ -8,6 +8,11 @@ namespace MCPServer.Services;
 public interface IPluginRegistryService
 {
     /// <summary>
+    /// Gets or sets the current authentication token (stored for cross-scope access)
+    /// </summary>
+    string? CurrentToken { get; set; }
+    
+    /// <summary>
     /// Fetches all active plugins from Dataverse
     /// </summary>
     Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(string? token = null, CancellationToken cancellationToken = default);

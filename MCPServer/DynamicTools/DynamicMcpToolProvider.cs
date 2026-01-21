@@ -32,29 +32,20 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 
     /// <summary>
     /// Returns the enumerator of dynamically created tools - called per request, NO CACHING
+    /// NOTE: MCP framework calls this during initialization AND for tools/list requests.
+    /// We MUST return tools even without a token (using cached plugins from startup).
     /// </summary>
     public IEnumerator<McpServerTool> GetEnumerator()
     {
-        Console.WriteLine("[TOOLS] GetEnumerator called - ALWAYS LOADING FRESH TOOLS FROM API");
-        
-        // Debug: Check if tokenContext is null
-        if (_tokenContext == null)
-        {
-            Console.WriteLine("[TOOLS] WARNING: _tokenContext is NULL!");
-            _logger.LogError("[TOOLS] _tokenContext is NULL - cannot load plugins without token context");
-        }
-        else
-        {
-            Console.WriteLine("[TOOLS] _tokenContext is present");
-        }
-        
+        Console.WriteLine("\n\n=== [TOOLS] GetEnumerator CALLED ===");
         var token = _tokenContext?.Token;
-        Console.WriteLine($"[TOOLS] Token value: {(string.IsNullOrEmpty(token) ? "NULL/EMPTY" : $"Present ({token?.Length} chars)")}");
-        _logger.LogInformation("[TOOLS] GetEnumerator called - Token: {HasToken}", !string.IsNullOrEmpty(token));
+        Console.WriteLine($"[TOOLS] Token available: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
         
-        // Always load fresh tools from API (no caching)
+        // IMPORTANT: Always try to load tools - even without token, use cached plugins from startup
+        // This ensures tools/list returns tools after initialization
+        Console.WriteLine("[TOOLS] Loading tools from API/cache...");
         var tools = LoadToolsAsync().GetAwaiter().GetResult();
-        Console.WriteLine($"[TOOLS] GetEnumerator returning {tools.Count} tools from API");
+        Console.WriteLine($"[TOOLS] GetEnumerator returning {tools.Count} tools");
         
         return tools.GetEnumerator();
     }

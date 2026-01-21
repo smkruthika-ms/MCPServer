@@ -16,6 +16,11 @@ public class DataversePluginRegistryService : IPluginRegistryService
     private readonly DataverseApiService _dataverseService;
     private const string PluginsCacheKey = "mcp_plugins_cache";
     private const int CacheDurationMinutes = 60;
+    
+    /// <summary>
+    /// Current authentication token (stored for cross-scope access since this is a singleton)
+    /// </summary>
+    public string? CurrentToken { get; set; }
 
     public DataversePluginRegistryService(
         HttpClient httpClient,
@@ -34,13 +39,30 @@ public class DataversePluginRegistryService : IPluginRegistryService
     /// </summary>
     public async Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(string? token = null, CancellationToken cancellationToken = default)
     {
-        Console.WriteLine($"[REGISTRY] GetAllPluginsAsync called with token: {(!string.IsNullOrEmpty(token) ? "YES ✓" : "NO ✗")}");
+        // Use provided token or fall back to stored CurrentToken
+        var effectiveToken = token ?? CurrentToken;
+        Console.WriteLine($"[REGISTRY] GetAllPluginsAsync called with token: {(!string.IsNullOrEmpty(token) ? "PROVIDED" : "NULL")}, CurrentToken: {(!string.IsNullOrEmpty(CurrentToken) ? "SET" : "NULL")}, Effective: {(!string.IsNullOrEmpty(effectiveToken) ? "YES ✓" : "NO ✗")}");
+        
+        // Check cache first - especially important when no token is available (startup/initialization)
+        if (_cache.TryGetValue<IEnumerable<PluginInfo>>(PluginsCacheKey, out var cachedPlugins) && cachedPlugins != null)
+        {
+            var cachedList = cachedPlugins.ToList();
+            Console.WriteLine($"[REGISTRY] Cache HIT - returning {cachedList.Count} cached plugins");
+            return cachedList;
+        }
+        
+        // No cache - need token to fetch from API
+        if (string.IsNullOrEmpty(effectiveToken))
+        {
+            Console.WriteLine("[REGISTRY] Cache miss AND no token - returning empty list (will be populated on first authenticated request)");
+            return [];
+        }
         
         Console.WriteLine($"[REGISTRY] Cache miss - fetching from API");
         try
         {
             // Fetch from plugin API
-            var plugins = await FetchPluginsFromDataverseAsync(token, cancellationToken);
+            var plugins = await FetchPluginsFromDataverseAsync(effectiveToken, cancellationToken);
             var activePlugins = plugins//.Where(p => p.IsActive)
             .ToList();
 
