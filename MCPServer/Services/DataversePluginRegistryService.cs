@@ -229,7 +229,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
                     response.StatusCode, errorContent);
                 
                 // Return mock data when API fails
-                return GetMockPlugins();
+                return [];// GetMockPlugins();
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -243,7 +243,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             _logger.LogError(ex, "HTTP error fetching plugins from API, using mock data");
             // Return mock data on HTTP errors
-            return GetMockPlugins();
+            return [];//GetMockPlugins();
         }
     }
 
