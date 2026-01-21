@@ -16,6 +16,11 @@ public class DataversePluginRegistryService : IPluginRegistryService
     private readonly DataverseApiService _dataverseService;
     private const string PluginsCacheKey = "mcp_plugins_cache";
     private const int CacheDurationMinutes = 60;
+    
+    /// <summary>
+    /// Current authentication token (stored for cross-scope access since this is a singleton)
+    /// </summary>
+    public string? CurrentToken { get; set; }
 
     public DataversePluginRegistryService(
         HttpClient httpClient,
@@ -34,12 +39,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
     /// </summary>
     public async Task<IEnumerable<PluginInfo>> GetAllPluginsAsync(string? token = null, CancellationToken cancellationToken = default)
     {
-        // Check cache first
-        if (_cache.TryGetValue(PluginsCacheKey, out IEnumerable<PluginInfo>? cachedPlugins))
-        {
-            _logger.LogInformation("Returning plugins from cache");
-            return cachedPlugins ?? [];
-        }
+        
 
         try
         {
@@ -122,7 +122,25 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 System.Text.Encoding.UTF8,
                 "application/json");
 
-            var response = await _httpClient.PostAsync(endpoint, jsonContent, cancellationToken);
+            // Create a new request with Authorization header
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            httpRequest.Content = jsonContent;
+            
+            // Add the Bearer token from CurrentToken
+            if (!string.IsNullOrEmpty(CurrentToken))
+            {
+                var tokenValue = CurrentToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentToken.Substring(7).Trim()
+                    : CurrentToken.Trim();
+                httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenValue);
+                _logger.LogInformation("Added Authorization header to plugin invocation request");
+            }
+            else
+            {
+                _logger.LogWarning("No CurrentToken available for plugin invocation - request may fail with 401");
+            }
+
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -155,10 +173,9 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             // Create a new HttpClient instance for this request to avoid header conflicts
             using var client = new HttpClient();
-            
-            // Add authorization header if token is provided
             if (!string.IsNullOrEmpty(token))
             {
+                // Remove "Bearer " prefix (case-insensitive) and trim all whitespace
                 var cleanToken = token;
                 if (cleanToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 {
@@ -166,17 +183,38 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 }
                 cleanToken = cleanToken.Trim();
                 
+                // Remove first and last character (quotes or other wrappers)
                 if (cleanToken.Length > 2)
                 {
                     cleanToken = cleanToken.Substring(1, cleanToken.Length - 2);
-                    _logger.LogInformation("Adding Authorization header to plugin API request");
-                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
+                }
+                
+                _logger.LogInformation("Clean Token (without Bearer prefix and wrapper characters): {CleanToken}", cleanToken);
+                
+                if (cleanToken.Length > 0)
+                {
+                    _logger.LogInformation("Setting Authorization header with Bearer token");
+                    
+                    // Create Authorization header with proper format: "Bearer <token>"
+                    // The AuthenticationHeaderValue constructor takes scheme ("Bearer") and the token
+                    // It automatically adds a space between scheme and token
+                    _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
+                    
+                    _logger.LogInformation("Authorization header set: Bearer {TokenEnd}", 
+                        cleanToken);
+                    _logger.LogInformation("Full Authorization Header: {AuthHeader}", 
+                        _httpClient.DefaultRequestHeaders.Authorization?.ToString() ?? "Not set");
+                }
+                else
+                {
+                    _logger.LogWarning("Token provided but empty after cleaning");
                 }
             }
             else
             {
                 _logger.LogInformation("No token provided for plugin API request");
             }
+            
 
             // Call the plugin API endpoint
             const string pluginApiUrl = "https://salescopilotskeusuat.azurewebsites.net/api/plugins";
@@ -205,7 +243,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             _logger.LogError(ex, "HTTP error fetching plugins from API, using mock data");
             // Return mock data on HTTP errors
-            return [];//GetMockPlugins();
+            return GetMockPlugins();
         }
     }
 

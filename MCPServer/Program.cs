@@ -1,8 +1,10 @@
 using MCPServer.Services;
 using MCPServer.Extensions;
+using MCPServer.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,6 +17,11 @@ builder.Services.AddMemoryCache();  // Add memory cache for plugin registry cach
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
 builder.Services.AddHttpClient<ExecutionHostService>();
 builder.Services.AddSingleton<ExecutionHostService>();
+
+// Register Dataverse API service and plugin registry as Singletons for cross-scope token access
+builder.Services.AddSingleton<DataverseApiService>();
+builder.Services.AddHttpClient<DataversePluginRegistryService>();
+builder.Services.AddSingleton<IPluginRegistryService, DataversePluginRegistryService>();
 
 // Add services to the container.
 builder.Services
@@ -42,9 +49,11 @@ builder.Services
             
             // Extract token from Authorization header
             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
+            string? token = null;
+            
             if (!string.IsNullOrEmpty(authHeader))
             {
-                var token = authHeader.Replace("Bearer ", "");
+                token = authHeader.Replace("Bearer ", "");
 
                 var handler = new JwtSecurityTokenHandler();
                 var jwtToken = handler.ReadJwtToken(token);
@@ -58,6 +67,11 @@ builder.Services
                     Name = JsonSerializer.Serialize(token),
                     Version = "1.0.0"
                 };
+                
+                // IMPORTANT: Store token in singleton PluginRegistry for cross-scope access
+                var pluginRegistry = httpContext.RequestServices.GetRequiredService<IPluginRegistryService>();
+                pluginRegistry.CurrentToken = token;
+                Console.WriteLine($"[REQUEST] Token stored in singleton PluginRegistry.CurrentToken ✓");
             }
             else
             {
@@ -67,7 +81,137 @@ builder.Services
                     Version = "1.0.0"
                 };
             }
-
+            
+            // Configure dynamic tool handlers for per-session tool loading
+            var pluginRegistryForHandlers = httpContext.RequestServices.GetRequiredService<IPluginRegistryService>();
+            var loggerFactory = httpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+            var handlerLogger = loggerFactory.CreateLogger("DynamicToolHandlers");
+            
+            serverOptions.Handlers = new McpServerHandlers
+            {
+                // Handle tools/list requests dynamically with authentication token
+                ListToolsHandler = async (request, ct) =>
+                {
+                    try
+                    {
+                        var currentToken = pluginRegistryForHandlers.CurrentToken;
+                        Console.WriteLine($"[HANDLER] ListToolsHandler called - Token: {(!string.IsNullOrEmpty(currentToken) ? "YES" : "NO")}");
+                        
+                        var plugins = await pluginRegistryForHandlers.GetAllPluginsAsync(currentToken, ct);
+                        var tools = new List<Tool>();
+                        
+                        foreach (var plugin in plugins)
+                        {
+                            if (string.IsNullOrWhiteSpace(plugin.FunctionName))
+                                continue;
+                                
+                            var toolName = plugin.FunctionName ?? plugin.PluginName ?? "unknown_tool";
+                            var toolDescription = plugin.Description ?? plugin.FriendlyName ?? "No description available";
+                            
+                            // Build JSON Schema for input parameters
+                            JsonElement inputSchema;
+                            if (!string.IsNullOrEmpty(plugin.InputParameter))
+                            {
+                                try
+                                {
+                                    // Try to parse InputParameter as JSON schema
+                                    inputSchema = JsonSerializer.Deserialize<JsonElement>(plugin.InputParameter);
+                                }
+                                catch
+                                {
+                                    // Create a simple schema with the input as a single string property
+                                    var schemaJson = JsonSerializer.Serialize(new
+                                    {
+                                        type = "object",
+                                        properties = new Dictionary<string, object>
+                                        {
+                                            ["input"] = new { type = "string", description = plugin.InputParameter }
+                                        }
+                                    });
+                                    inputSchema = JsonSerializer.Deserialize<JsonElement>(schemaJson);
+                                }
+                            }
+                            else
+                            {
+                                // Empty object schema
+                                inputSchema = JsonSerializer.Deserialize<JsonElement>("{\"type\":\"object\",\"properties\":{}}");
+                            }
+                            
+                            tools.Add(new Tool
+                            {
+                                Name = toolName,
+                                Description = toolDescription,
+                                InputSchema = inputSchema
+                            });
+                        }
+                        
+                        Console.WriteLine($"[HANDLER] ListToolsHandler returning {tools.Count} tools");
+                        return new ListToolsResult { Tools = tools };
+                    }
+                    catch (Exception ex)
+                    {
+                        handlerLogger.LogError(ex, "Error in ListToolsHandler");
+                        Console.WriteLine($"[HANDLER] ListToolsHandler ERROR: {ex.Message}");
+                        return new ListToolsResult { Tools = [] };
+                    }
+                },
+                
+                // Handle tools/call requests by invoking the actual plugin
+                CallToolHandler = async (request, ct) =>
+                {
+                    try
+                    {
+                        var toolName = request.Params?.Name ?? throw new ArgumentException("Tool name is required");
+                        Console.WriteLine($"[HANDLER] CallToolHandler called for tool: {toolName}");
+                        
+                        // Convert arguments to Dictionary<string, object?>
+                        var args = new Dictionary<string, object?>();
+                        if (request.Params?.Arguments != null)
+                        {
+                            foreach (var kvp in request.Params.Arguments)
+                            {
+                                args[kvp.Key] = kvp.Value.ValueKind switch
+                                {
+                                    JsonValueKind.String => kvp.Value.GetString(),
+                                    JsonValueKind.Number => kvp.Value.GetDouble(),
+                                    JsonValueKind.True => true,
+                                    JsonValueKind.False => false,
+                                    JsonValueKind.Null => null,
+                                    _ => kvp.Value.GetRawText()
+                                };
+                            }
+                        }
+                        
+                        // Invoke the plugin
+                        var result = await pluginRegistryForHandlers.InvokePluginAsync(toolName, args, ct);
+                        var resultText = result?.ToString() ?? "null";
+                        
+                        Console.WriteLine($"[HANDLER] CallToolHandler completed for tool: {toolName}");
+                        
+                        return new CallToolResult
+                        {
+                            Content = new List<ContentBlock>
+                            {
+                                new TextContentBlock { Text = resultText }
+                            }
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        handlerLogger.LogError(ex, "Error in CallToolHandler");
+                        Console.WriteLine($"[HANDLER] CallToolHandler ERROR: {ex.Message}");
+                        
+                        return new CallToolResult
+                        {
+                            IsError = true,
+                            Content = new List<ContentBlock>
+                            {
+                                new TextContentBlock { Text = $"Error: {ex.Message}" }
+                            }
+                        };
+                    }
+                }
+            };
 
             return Task.CompletedTask;
         };
@@ -82,8 +226,9 @@ builder.Services
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<ExtractContextTool>()
-    .WithDynamicPlugins(builder.Services);  // Add dynamic tools from Dataverse plugins
+    .WithTools<ExtractContextTool>();
+    // Note: Dynamic tools from Dataverse are handled via McpServerHandlers.ListToolsHandler and CallToolHandler
+    // registered in ConfigureSessionOptions above - this enables per-session tool loading with auth token
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -26,12 +26,36 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     }
 
     /// <summary>
-    /// Returns the enumerator of dynamically created tools
+    /// Returns the enumerator of dynamically created tools (parameterless - required by IEnumerable)
+    /// Uses CurrentToken from singleton PluginRegistry
     /// </summary>
     public IEnumerator<McpServerTool> GetEnumerator()
     {
-        // Load tools synchronously (called during server startup)
-        var tools = LoadToolsAsync().GetAwaiter().GetResult();
+        // Get token from the singleton registry (set during ConfigureSessionOptions)
+        var token = _pluginRegistry.CurrentToken;
+        Console.WriteLine($"[TOOLS] GetEnumerator called - Token from registry: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
+        
+        // Load tools synchronously
+        var tools = LoadToolsAsync(token).GetAwaiter().GetResult();
+        return tools.GetEnumerator();
+    }
+    
+    /// <summary>
+    /// Returns the enumerator of dynamically created tools with explicit McpServer (for token extraction)
+    /// </summary>
+    public IEnumerator<McpServerTool> GetEnumerator(McpServer mcpServer)
+    {
+        // Extract token from McpServer's ServerInfo.Name (where we stored it)
+        var token = mcpServer.ServerOptions?.ServerInfo?.Name;
+        Console.WriteLine($"[TOOLS] GetEnumerator(mcpServer) called - Token: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
+        
+        // Also store it in the registry for future use
+        if (!string.IsNullOrEmpty(token))
+        {
+            _pluginRegistry.CurrentToken = token;
+        }
+        
+        var tools = LoadToolsAsync(token).GetAwaiter().GetResult();
         return tools.GetEnumerator();
     }
 
@@ -40,7 +64,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     /// <summary>
     /// Loads all plugins as MCP tools from Dataverse
     /// </summary>
-    private async Task<List<McpServerTool>> LoadToolsAsync()
+    private async Task<List<McpServerTool>> LoadToolsAsync(string token)
     {
         if (_cachedTools != null)
         {
@@ -49,7 +73,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 
         try
         {
-            var plugins = await _pluginRegistry.GetAllPluginsAsync();
+            var plugins = await _pluginRegistry.GetAllPluginsAsync(token);
             var tools = new List<McpServerTool>();
 
             foreach (var plugin in plugins)
@@ -120,7 +144,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     {
         _cachedTools = null;
         await _pluginRegistry.RefreshPluginsAsync();
-        _ = await LoadToolsAsync();
+        _ = await LoadToolsAsync(_pluginRegistry.CurrentToken);
         _logger.LogInformation("Dynamic tools refreshed");
     }
 }
