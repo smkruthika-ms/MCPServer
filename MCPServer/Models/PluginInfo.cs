@@ -506,11 +506,23 @@ public class PrePlugin
 /// </summary>
 public class PluginInvocationRequest
 {
-    [JsonPropertyName("input")]
-    public Dictionary<string, object?>? Input { get; set; }
+    [JsonPropertyName("inputs")]
+    public PluginInputs? Inputs { get; set; }
 
     [JsonPropertyName("FunctionName")]
     public string? FunctionName { get; set; }
+}
+
+/// <summary>
+/// Plugin inputs with text and text_3 fields for user prompt
+/// </summary>
+public class PluginInputs
+{
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("text_3")]
+    public string? Text3 { get; set; }
 }
 
 /// <summary>

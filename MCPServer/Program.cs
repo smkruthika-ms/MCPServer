@@ -38,51 +38,30 @@ builder.Services
         // Configure per-session options
         options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
         {
-            var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var header in httpContext.Request.Headers)
-            {
-                    sanitizedHeaders[header.Key] = header.Value.ToString();
-            }
-
-            //sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
-            
-            
-            // Extract token from Authorization header
+            // Extract token from Authorization header SECURELY
+            // We capture it in a closure for the handlers - NOT passed via serverOptions to avoid logging
             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
-            string? token = null;
+            string? sessionToken = null;
             
             if (!string.IsNullOrEmpty(authHeader))
             {
-                token = authHeader.Replace("Bearer ", "");
-
-                var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(token);
-
-                var appId = jwtToken.Payload["appid"]?.ToString() ?? "";
-                var aud = jwtToken.Audiences != null ? string.Join(", ", jwtToken.Audiences) : "";
-                var iss = jwtToken.Issuer ?? "";
-
-                serverOptions.ServerInfo = new Implementation
-                {
-                    Name = JsonSerializer.Serialize(token),
-                    Version = "1.0.0"
-                };
-                
-                // IMPORTANT: Store token in singleton PluginRegistry for cross-scope access
-                var pluginRegistry = httpContext.RequestServices.GetRequiredService<IPluginRegistryService>();
-                pluginRegistry.CurrentToken = token;
-                Console.WriteLine($"[REQUEST] Token stored in singleton PluginRegistry.CurrentToken ✓");
+                sessionToken = authHeader.Replace("Bearer ", "");
+                Console.WriteLine($"[REQUEST] Token extracted from Authorization header (length: {sessionToken?.Length ?? 0})");
             }
             else
             {
-                serverOptions.ServerInfo = new Implementation
-                {
-                    Name = JsonSerializer.Serialize(sanitizedHeaders),
-                    Version = "1.0.0"
-                };
+                Console.WriteLine("[REQUEST] No Authorization header found");
             }
             
+            // Set server info WITHOUT the token (safe for logging)
+            serverOptions.ServerInfo = new Implementation
+            {
+                Name = "MCPServer",
+                Version = "1.0.0"
+            };
+            
             // Configure dynamic tool handlers for per-session tool loading
+            // The sessionToken is captured in the closure - NOT stored in serverOptions
             var pluginRegistryForHandlers = httpContext.RequestServices.GetRequiredService<IPluginRegistryService>();
             var loggerFactory = httpContext.RequestServices.GetRequiredService<ILoggerFactory>();
             var handlerLogger = loggerFactory.CreateLogger("DynamicToolHandlers");
@@ -94,8 +73,8 @@ builder.Services
                 {
                     try
                     {
-                        var currentToken = pluginRegistryForHandlers.CurrentToken;
-                        Console.WriteLine($"[HANDLER] ListToolsHandler called - Token: {(!string.IsNullOrEmpty(currentToken) ? "YES" : "NO")}");
+                        // Use the captured sessionToken from the closure (not from serverOptions)
+                        Console.WriteLine($"[HANDLER] ListToolsHandler called - Token: {(!string.IsNullOrEmpty(sessionToken) ? "YES" : "NO")}");
                         
                         var tools = new List<Tool>();
                         
@@ -113,8 +92,8 @@ builder.Services
                             }")
                         });
                         
-                        // Add dynamic tools from plugins
-                        var plugins = await pluginRegistryForHandlers.GetAllPluginsAsync(currentToken, ct);
+                        // Add dynamic tools from plugins - use sessionToken from closure (secure, not logged)
+                        var plugins = await pluginRegistryForHandlers.GetAllPluginsAsync(sessionToken, ct);
                         
                         foreach (var plugin in plugins)
                         {
@@ -125,17 +104,20 @@ builder.Services
                             var toolName = plugin.PlannerKey;
                             var toolDescription = plugin.Description ?? plugin.FriendlyName ?? "No description available";
                             
-                            // Build JSON Schema for input parameters
-                            // Always create a proper JSON Schema with the InputParameter as description
-                            // The MCP SDK requires InputSchema to be a valid JSON Schema with type:"object"
-                            var inputDescription = plugin.InputParameter ?? "Input for this tool";
+                            // Build JSON Schema for input parameters - inputs is a string that will be
+                            // deserialized into { inputs: { text: "...", text_3: "..." } } when calling the API
                             var schemaJson = JsonSerializer.Serialize(new
                             {
                                 type = "object",
                                 properties = new Dictionary<string, object>
                                 {
-                                    ["input"] = new { type = "string", description = inputDescription }
-                                }
+                                    ["inputs"] = new 
+                                    { 
+                                        type = "string",
+                                        description = "The user query - a natural language input that specifies the desired intent."
+                                    }
+                                },
+                                required = new[] { "inputs" }
                             });
                             var inputSchema = JsonSerializer.Deserialize<JsonElement>(schemaJson);
                             
@@ -185,26 +167,21 @@ builder.Services
                             };
                         }
                         
-                        // Convert arguments to Dictionary<string, object?>
-                        var args = new Dictionary<string, object?>();
-                        if (request.Params?.Arguments != null)
+                        // Extract inputs as a string
+                        // The string will be used for both text and text_3 when calling the API
+                        string userPrompt = "";
+                        if (request.Params?.Arguments != null && 
+                            request.Params.Arguments.TryGetValue("inputs", out var inputsElement))
                         {
-                            foreach (var kvp in request.Params.Arguments)
-                            {
-                                args[kvp.Key] = kvp.Value.ValueKind switch
-                                {
-                                    JsonValueKind.String => kvp.Value.GetString(),
-                                    JsonValueKind.Number => kvp.Value.GetDouble(),
-                                    JsonValueKind.True => true,
-                                    JsonValueKind.False => false,
-                                    JsonValueKind.Null => null,
-                                    _ => kvp.Value.GetRawText()
-                                };
-                            }
+                            // inputs is now a string
+                            userPrompt = inputsElement.GetString() ?? "";
                         }
                         
-                        // Invoke the plugin
-                        var result = await pluginRegistryForHandlers.InvokePluginAsync(toolName, args, ct);
+                        Console.WriteLine($"[HANDLER] CallToolHandler extracted userPrompt length: {userPrompt.Length}");
+                        
+                        // Invoke the plugin - pass sessionToken securely via parameter
+                        Console.WriteLine($"[HANDLER] CallToolHandler invoking with token length: {sessionToken?.Length ?? 0}");
+                        var result = await pluginRegistryForHandlers.InvokePluginAsync(toolName, userPrompt, sessionToken, ct);
                         var resultText = result?.ToString() ?? "null";
                         
                         Console.WriteLine($"[HANDLER] CallToolHandler completed for tool: {toolName}");

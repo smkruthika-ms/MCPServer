@@ -10,12 +10,14 @@ namespace MCPServer.DynamicTools;
 /// <summary>
 /// Provides MCPServerTool instances dynamically from Dataverse plugins.
 /// Implements IEnumerable<McpServerTool> to be registered with IMcpServerBuilder.WithTools()
+/// NOTE: This class is no longer used - tools are now loaded via McpServerHandlers in Program.cs
 /// </summary>
 public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 {
     private readonly IPluginRegistryService _pluginRegistry;
     private readonly ILogger<DynamicMcpToolProvider> _logger;
     private List<McpServerTool>? _cachedTools;
+    private string? _sessionToken;
 
     public DynamicMcpToolProvider(
         IPluginRegistryService pluginRegistry,
@@ -26,17 +28,22 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     }
 
     /// <summary>
+    /// Sets the session token for plugin API calls
+    /// </summary>
+    public void SetSessionToken(string? token)
+    {
+        _sessionToken = token;
+    }
+
+    /// <summary>
     /// Returns the enumerator of dynamically created tools (parameterless - required by IEnumerable)
-    /// Uses CurrentToken from singleton PluginRegistry
     /// </summary>
     public IEnumerator<McpServerTool> GetEnumerator()
     {
-        // Get token from the singleton registry (set during ConfigureSessionOptions)
-        var token = _pluginRegistry.CurrentToken;
-        Console.WriteLine($"[TOOLS] GetEnumerator called - Token from registry: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
+        Console.WriteLine($"[TOOLS] GetEnumerator called - Token: {(!string.IsNullOrEmpty(_sessionToken) ? "YES" : "NO")}");
         
         // Load tools synchronously
-        var tools = LoadToolsAsync(token).GetAwaiter().GetResult();
+        var tools = LoadToolsAsync(_sessionToken).GetAwaiter().GetResult();
         return tools.GetEnumerator();
     }
     
@@ -49,13 +56,13 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
         var token = mcpServer.ServerOptions?.ServerInfo?.Name;
         Console.WriteLine($"[TOOLS] GetEnumerator(mcpServer) called - Token: {(!string.IsNullOrEmpty(token) ? "YES" : "NO")}");
         
-        // Also store it in the registry for future use
+        // Store it for future use
         if (!string.IsNullOrEmpty(token))
         {
-            _pluginRegistry.CurrentToken = token;
+            _sessionToken = token;
         }
         
-        var tools = LoadToolsAsync(token).GetAwaiter().GetResult();
+        var tools = LoadToolsAsync(_sessionToken).GetAwaiter().GetResult();
         return tools.GetEnumerator();
     }
 
@@ -64,7 +71,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     /// <summary>
     /// Loads all plugins as MCP tools from Dataverse
     /// </summary>
-    private async Task<List<McpServerTool>> LoadToolsAsync(string token)
+    private async Task<List<McpServerTool>> LoadToolsAsync(string? token)
     {
         if (_cachedTools != null)
         {
@@ -78,7 +85,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
 
             foreach (var plugin in plugins)
             {
-                var tool = CreateToolFromPlugin(plugin);
+                var tool = CreateToolFromPlugin(plugin, token);
                 if (tool != null)
                 {
                     tools.Add(tool);
@@ -100,7 +107,7 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     /// <summary>
     /// Creates an McpServerTool for a given plugin
     /// </summary>
-    private McpServerTool? CreateToolFromPlugin(PluginInfo plugin)
+    private McpServerTool? CreateToolFromPlugin(PluginInfo plugin, string? token)
     {
         if (string.IsNullOrWhiteSpace(plugin.FunctionName))
         {
@@ -113,9 +120,14 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
             var toolName = plugin.FunctionName ?? plugin.PluginName ?? "unknown_tool";
             var toolDescription = plugin.Description ?? plugin.FriendlyName ?? "No description available";
 
-            // Create a wrapper function that invokes the plugin
+            // Create a wrapper function that invokes the plugin with the token
+            // Extract text from args for the user prompt
             Func<Dictionary<string, object?>, CancellationToken, Task<object?>> pluginInvoker =
-                async (args, ct) => await _pluginRegistry.InvokePluginAsync(plugin.PluginName!, args, ct);
+                async (args, ct) => 
+                {
+                    var userPrompt = args?.ContainsKey("text") == true ? args["text"]?.ToString() ?? "" : "";
+                    return await _pluginRegistry.InvokePluginAsync(plugin.PluginName!, userPrompt, token, ct);
+                };
 
             // Create tool options with metadata
             var options = new McpServerToolCreateOptions
@@ -143,8 +155,8 @@ public class DynamicMcpToolProvider : IEnumerable<McpServerTool>
     public async Task RefreshToolsAsync()
     {
         _cachedTools = null;
-        await _pluginRegistry.RefreshPluginsAsync();
-        _ = await LoadToolsAsync(_pluginRegistry.CurrentToken);
+        await _pluginRegistry.RefreshPluginsAsync(_sessionToken);
+        _ = await LoadToolsAsync(_sessionToken);
         _logger.LogInformation("Dynamic tools refreshed");
     }
 }

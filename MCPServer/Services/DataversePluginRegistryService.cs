@@ -16,11 +16,6 @@ public class DataversePluginRegistryService : IPluginRegistryService
     private readonly DataverseApiService _dataverseService;
     private const string PluginsCacheKey = "mcp_plugins_cache";
     private const int CacheDurationMinutes = 60;
-    
-    /// <summary>
-    /// Current authentication token (stored for cross-scope access since this is a singleton)
-    /// </summary>
-    public string? CurrentToken { get; set; }
 
     public DataversePluginRegistryService(
         HttpClient httpClient,
@@ -82,18 +77,20 @@ public class DataversePluginRegistryService : IPluginRegistryService
         var plugins = await GetAllPluginsAsync(token, cancellationToken);
         return plugins.FirstOrDefault(p =>
             p.PluginName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true ||
-            p.FunctionName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true);
+            p.FunctionName?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true ||
+            p.PlannerKey?.Equals(pluginName, StringComparison.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>
-    /// Invokes a plugin with the given parameters
+    /// Invokes a plugin with the user prompt
     /// </summary>
     public async Task<object?> InvokePluginAsync(
         string pluginName,
-        Dictionary<string, object?> parameters,
+        string userPrompt,
+        string? token = null,
         CancellationToken cancellationToken = default)
     {
-        var plugin = await GetPluginByNameAsync(pluginName, null, cancellationToken);
+        var plugin = await GetPluginByNameAsync(pluginName, token, cancellationToken);
         if (plugin == null)
         {
             _logger.LogWarning("Plugin not found: {PluginName}", pluginName);
@@ -111,11 +108,19 @@ public class DataversePluginRegistryService : IPluginRegistryService
             var endpoint = plugin.GetPluginEndpoint();
             _logger.LogInformation("Invoking plugin {PluginName} at {Endpoint}", pluginName, endpoint);
 
+            // Build the request with inputs.text and inputs.text_3
             var request = new PluginInvocationRequest
             {
                 FunctionName = plugin.FunctionName,
-                Input = parameters
+                Inputs = new PluginInputs
+                {
+                    Text = userPrompt,
+                    Text3 = userPrompt
+                }
             };
+            
+            _logger.LogInformation("Plugin invocation request - FunctionName: {FunctionName}, UserPrompt length: {PromptLength}", 
+                plugin.FunctionName, userPrompt?.Length ?? 0);
 
             var jsonContent = new StringContent(
                 JsonSerializer.Serialize(request),
@@ -126,18 +131,19 @@ public class DataversePluginRegistryService : IPluginRegistryService
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
             httpRequest.Content = jsonContent;
             
-            // Add the Bearer token from CurrentToken
-            if (!string.IsNullOrEmpty(CurrentToken))
+            // Add the Bearer token (passed securely via parameter, not stored)
+            if (!string.IsNullOrEmpty(token))
             {
-                var tokenValue = CurrentToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-                    ? CurrentToken.Substring(7).Trim()
-                    : CurrentToken.Trim();
+                var tokenValue = token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                    ? token.Substring(7).Trim()
+                    : token.Trim();
+                _logger.LogInformation("Plugin invocation token length: {TokenLength}", tokenValue.Length);
                 httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenValue);
                 _logger.LogInformation("Added Authorization header to plugin invocation request");
             }
             else
             {
-                _logger.LogWarning("No CurrentToken available for plugin invocation - request may fail with 401");
+                _logger.LogWarning("No token provided for plugin invocation - request may fail with 401");
             }
 
             var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
@@ -174,8 +180,8 @@ public class DataversePluginRegistryService : IPluginRegistryService
             // Create a new HttpClient instance for this request to avoid header conflicts
             using var client = new HttpClient();
             
-            // Use provided token or fall back to CurrentToken
-            var effectiveToken = token ?? CurrentToken;
+            // Use provided token directly (no fallback to avoid storing tokens)
+            var effectiveToken = token;
             
             if (!string.IsNullOrEmpty(effectiveToken))
             {
@@ -212,7 +218,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
             }
             else
             {
-                _logger.LogWarning("No token provided for plugin API request - using CurrentToken: {HasToken}", !string.IsNullOrEmpty(CurrentToken));
+                _logger.LogWarning("No token provided for plugin API request");
             }
             
 
