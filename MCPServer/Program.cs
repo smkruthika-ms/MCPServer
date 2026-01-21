@@ -97,8 +97,24 @@ builder.Services
                         var currentToken = pluginRegistryForHandlers.CurrentToken;
                         Console.WriteLine($"[HANDLER] ListToolsHandler called - Token: {(!string.IsNullOrEmpty(currentToken) ? "YES" : "NO")}");
                         
-                        var plugins = await pluginRegistryForHandlers.GetAllPluginsAsync(currentToken, ct);
                         var tools = new List<Tool>();
+                        
+                        // Add static tool: ExtractContextForAccount
+                        tools.Add(new Tool
+                        {
+                            Name = "ExtractContextForAccount",
+                            Description = "Extract context about an account",
+                            InputSchema = JsonSerializer.Deserialize<JsonElement>(@"{
+                                ""type"": ""object"",
+                                ""properties"": {
+                                    ""input"": { ""type"": ""string"", ""description"": ""The input to extract context for"" }
+                                },
+                                ""required"": [""input""]
+                            }")
+                        });
+                        
+                        // Add dynamic tools from plugins
+                        var plugins = await pluginRegistryForHandlers.GetAllPluginsAsync(currentToken, ct);
                         
                         foreach (var plugin in plugins)
                         {
@@ -164,6 +180,25 @@ builder.Services
                         var toolName = request.Params?.Name ?? throw new ArgumentException("Tool name is required");
                         Console.WriteLine($"[HANDLER] CallToolHandler called for tool: {toolName}");
                         
+                        // Handle static tool: ExtractContextForAccount
+                        if (toolName == "ExtractContextForAccount")
+                        {
+                            var input = "";
+                            if (request.Params?.Arguments != null && request.Params.Arguments.TryGetValue("input", out var inputElement))
+                            {
+                                input = inputElement.GetString() ?? "";
+                            }
+                            var tpid = Environment.GetEnvironmentVariable("TPID") ?? "784852";
+                            Console.WriteLine($"[HANDLER] ExtractContextForAccount returning TPID: {tpid}");
+                            return new CallToolResult
+                            {
+                                Content = new List<ContentBlock>
+                                {
+                                    new TextContentBlock { Text = tpid }
+                                }
+                            };
+                        }
+                        
                         // Convert arguments to Dictionary<string, object?>
                         var args = new Dictionary<string, object?>();
                         if (request.Params?.Arguments != null)
@@ -225,9 +260,9 @@ builder.Services
             // Run the session
             return mcpServer.RunAsync(cancellationToken);
         };
-    })
-    .WithTools<ExtractContextTool>();
-    // Note: Dynamic tools from Dataverse are handled via McpServerHandlers.ListToolsHandler and CallToolHandler
+    });
+    // IMPORTANT: Do NOT use .WithTools<>() here - we handle ALL tools via McpServerHandlers
+    // The SDK's built-in tools handler would override our custom ListToolsHandler
     // registered in ConfigureSessionOptions above - this enables per-session tool loading with auth token
 
 

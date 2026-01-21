@@ -173,37 +173,37 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             // Create a new HttpClient instance for this request to avoid header conflicts
             using var client = new HttpClient();
-            if (!string.IsNullOrEmpty(token))
+            
+            // Use provided token or fall back to CurrentToken
+            var effectiveToken = token ?? CurrentToken;
+            
+            if (!string.IsNullOrEmpty(effectiveToken))
             {
                 // Remove "Bearer " prefix (case-insensitive) and trim all whitespace
-                var cleanToken = token;
+                var cleanToken = effectiveToken;
                 if (cleanToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 {
                     cleanToken = cleanToken.Substring(7); // Remove "Bearer " (7 characters)
                 }
                 cleanToken = cleanToken.Trim();
                 
-                // Remove first and last character (quotes or other wrappers)
-                if (cleanToken.Length > 2)
+                // Only remove quotes if the token is wrapped in them (from JSON serialization)
+                if (cleanToken.StartsWith("\"") && cleanToken.EndsWith("\"") && cleanToken.Length > 2)
                 {
                     cleanToken = cleanToken.Substring(1, cleanToken.Length - 2);
+                    _logger.LogInformation("Removed JSON quotes from token");
                 }
                 
-                _logger.LogInformation("Clean Token (without Bearer prefix and wrapper characters): {CleanToken}", cleanToken);
+                _logger.LogInformation("Token length after cleaning: {Length}", cleanToken.Length);
                 
                 if (cleanToken.Length > 0)
                 {
                     _logger.LogInformation("Setting Authorization header with Bearer token");
                     
-                    // Create Authorization header with proper format: "Bearer <token>"
-                    // The AuthenticationHeaderValue constructor takes scheme ("Bearer") and the token
-                    // It automatically adds a space between scheme and token
-                    _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
+                    // Set Authorization header on the new client instance (not the injected _httpClient)
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
                     
-                    _logger.LogInformation("Authorization header set: Bearer {TokenEnd}", 
-                        cleanToken);
-                    _logger.LogInformation("Full Authorization Header: {AuthHeader}", 
-                        _httpClient.DefaultRequestHeaders.Authorization?.ToString() ?? "Not set");
+                    _logger.LogInformation("Authorization header set successfully");
                 }
                 else
                 {
@@ -212,7 +212,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
             }
             else
             {
-                _logger.LogInformation("No token provided for plugin API request");
+                _logger.LogWarning("No token provided for plugin API request - using CurrentToken: {HasToken}", !string.IsNullOrEmpty(CurrentToken));
             }
             
 
