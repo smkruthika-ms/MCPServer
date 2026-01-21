@@ -237,7 +237,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
             
             var pluginResponse = JsonSerializer.Deserialize<PluginListResponse>(content);
 
-            return pluginResponse?.Value ?? [];
+            return pluginResponse?.Plugins ?? [];
         }
         catch (HttpRequestException ex)
         {
@@ -263,7 +263,6 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 BaseHttpEndpoint = "https://salescopilotpluginsnonprod.microsoft.com/uat/v2/skillstudio/",
                 MethodEndpoint = "accountplugin",
                 FunctionName = "GetAccountV2",
-                PlannerKey = "Account_V2",
                 InputParameter = "Extracted AccountId(GUID), Account Name (Company name), or TPID (Top parent ID), or all",
                 OutputParameter = "Summarized information about profile/highlights of an account.",
                 StateCode = 0,

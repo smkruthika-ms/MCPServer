@@ -125,33 +125,18 @@ builder.Services
                             var toolDescription = plugin.Description ?? plugin.FriendlyName ?? "No description available";
                             
                             // Build JSON Schema for input parameters
-                            JsonElement inputSchema;
-                            if (!string.IsNullOrEmpty(plugin.InputParameter))
+                            // Always create a proper JSON Schema with the InputParameter as description
+                            // The MCP SDK requires InputSchema to be a valid JSON Schema with type:"object"
+                            var inputDescription = plugin.InputParameter ?? "Input for this tool";
+                            var schemaJson = JsonSerializer.Serialize(new
                             {
-                                try
+                                type = "object",
+                                properties = new Dictionary<string, object>
                                 {
-                                    // Try to parse InputParameter as JSON schema
-                                    inputSchema = JsonSerializer.Deserialize<JsonElement>(plugin.InputParameter);
+                                    ["input"] = new { type = "string", description = inputDescription }
                                 }
-                                catch
-                                {
-                                    // Create a simple schema with the input as a single string property
-                                    var schemaJson = JsonSerializer.Serialize(new
-                                    {
-                                        type = "object",
-                                        properties = new Dictionary<string, object>
-                                        {
-                                            ["input"] = new { type = "string", description = plugin.InputParameter }
-                                        }
-                                    });
-                                    inputSchema = JsonSerializer.Deserialize<JsonElement>(schemaJson);
-                                }
-                            }
-                            else
-                            {
-                                // Empty object schema
-                                inputSchema = JsonSerializer.Deserialize<JsonElement>("{\"type\":\"object\",\"properties\":{}}");
-                            }
+                            });
+                            var inputSchema = JsonSerializer.Deserialize<JsonElement>(schemaJson);
                             
                             tools.Add(new Tool
                             {
