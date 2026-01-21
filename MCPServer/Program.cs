@@ -118,10 +118,11 @@ builder.Services
                         
                         foreach (var plugin in plugins)
                         {
-                            if (string.IsNullOrWhiteSpace(plugin.FunctionName))
+                            if (string.IsNullOrWhiteSpace(plugin.PlannerKey))
                                 continue;
                                 
-                            var toolName = plugin.FunctionName ?? plugin.PluginName ?? "unknown_tool";
+                            // Use PlannerKey (FriendlyName with spaces replaced)
+                            var toolName = plugin.PlannerKey;
                             var toolDescription = plugin.Description ?? plugin.FriendlyName ?? "No description available";
                             
                             // Build JSON Schema for input parameters
