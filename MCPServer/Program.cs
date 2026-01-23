@@ -12,6 +12,10 @@ using WebSearchMCPServer.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure PluginFilter options from appsettings.json
+builder.Services.Configure<PluginFilterOptions>(
+    builder.Configuration.GetSection(PluginFilterOptions.SectionName));
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();  // Add memory cache for plugin registry caching
 builder.Services.AddSingleton<SalesAgentPluginApiService>();

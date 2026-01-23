@@ -1,6 +1,7 @@
 using MCPServer.Models;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace MCPServer.Services;
@@ -14,6 +15,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
     private readonly IMemoryCache _cache;
     private readonly ILogger<DataversePluginRegistryService> _logger;
     private readonly DataverseApiService _dataverseService;
+    private readonly PluginFilterOptions _filterOptions;
     private const string PluginsCacheKey = "mcp_plugins_cache";
     private const int CacheDurationMinutes = 60;
 
@@ -21,12 +23,14 @@ public class DataversePluginRegistryService : IPluginRegistryService
         HttpClient httpClient,
         IMemoryCache cache,
         ILogger<DataversePluginRegistryService> logger,
-        DataverseApiService dataverseService)
+        DataverseApiService dataverseService,
+        IOptions<PluginFilterOptions> filterOptions)
     {
         _httpClient = httpClient;
         _cache = cache;
         _logger = logger;
         _dataverseService = dataverseService;
+        _filterOptions = filterOptions.Value;
     }
 
     /// <summary>
@@ -40,10 +44,23 @@ public class DataversePluginRegistryService : IPluginRegistryService
         {
             // Fetch from plugin API
             var plugins = await FetchPluginsFromDataverseAsync(token, cancellationToken);
-            var activePlugins = plugins//.Where(p => p.IsActive)
+            
+            // Filter out ignored planner keys
+            var ignoredKeys = _filterOptions.IgnoredPlannerKeys ?? new List<string>();
+            var filteredPlugins = plugins
+                .Where(p => ignoredKeys.Contains(p.PlannerKey, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            
+            if (ignoredKeys.Count > 0)
+            {
+                var ignoredCount = plugins.Count() - filteredPlugins.Count;
+                _logger.LogInformation("Filtered out {IgnoredCount} plugins based on IgnoredPlannerKeys configuration", ignoredCount);
+            }
+            
+            var activePlugins = filteredPlugins//.Where(p => p.IsActive)
             .ToList();
 
-            _logger.LogInformation("Fetched {PluginCount} active plugins from Dataverse", activePlugins.Count);
+            _logger.LogInformation("Fetched {PluginCount} active plugins from Dataverse (after filtering)", activePlugins.Count);
 
             // Cache the results
             var cacheOptions = new MemoryCacheEntryOptions()
