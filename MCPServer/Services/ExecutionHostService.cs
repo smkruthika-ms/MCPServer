@@ -84,7 +84,7 @@ public class ExecutionHostService
                 
                 if (cleanToken.Length > 0)
                 {
-                    _logger.LogInformation("Setting Authorization header with Bearer token");
+                    _logger.LogInformation("Setting Authorization header with Bearer token", cleanToken);
                     
                     // Create Authorization header with proper format: "Bearer <token>"
                     // The AuthenticationHeaderValue constructor takes scheme ("Bearer") and the token

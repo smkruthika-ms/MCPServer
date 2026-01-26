@@ -51,6 +51,7 @@ builder.Services
             {
                 sessionToken = authHeader.Replace("Bearer ", "");
                 Console.WriteLine($"[REQUEST] Token extracted from Authorization header (length: {sessionToken?.Length ?? 0})");
+                Console.WriteLine($"[REQUEST] Full Token received from MCP client: {sessionToken}");
             }
             else
             {

@@ -48,7 +48,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
             // Filter out ignored planner keys
             var ignoredKeys = _filterOptions.IgnoredPlannerKeys ?? new List<string>();
             var filteredPlugins = plugins
-                .Where(p => ignoredKeys.Contains(p.PlannerKey, StringComparer.OrdinalIgnoreCase))
+                //.Where(p => ignoredKeys.Contains(p.PlannerKey, StringComparer.OrdinalIgnoreCase))
                 .ToList();
             
             if (ignoredKeys.Count > 0)
@@ -216,7 +216,7 @@ public class DataversePluginRegistryService : IPluginRegistryService
                 
                 if (cleanToken.Length > 0)
                 {
-                    _logger.LogInformation("Setting Authorization header with Bearer token");
+                    _logger.LogInformation("Setting Authorization header with Bearer token", cleanToken);
                     
                     // Set Authorization header on the new client instance (not the injected _httpClient)
                     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanToken);
