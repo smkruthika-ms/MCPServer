@@ -1,6 +1,7 @@
 using MCPServer.Services;
 using MCPServer.Extensions;
 using MCPServer.Models;
+using MCPServer.Resources;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.Protocol;
@@ -63,6 +64,13 @@ builder.Services
             {
                 Name = "MCPServer",
                 Version = "1.0.0"
+            };
+            
+            // Enable capabilities for resources and tools
+            serverOptions.Capabilities = new ServerCapabilities
+            {
+                Resources = new ResourcesCapability(),
+                Tools = new ToolsCapability()
             };
             
             // Configure dynamic tool handlers for per-session tool loading
@@ -213,6 +221,97 @@ builder.Services
                             }
                         };
                     }
+                },
+                
+                // Handle resources/list requests - return available widget resources
+                ListResourcesHandler = async (request, ct) =>
+                {
+                    Console.WriteLine("[HANDLER] ListResourcesHandler called");
+                    
+                    var resources = new List<Resource>
+                    {
+                        new Resource
+                        {
+                            Uri = "ui://widget/create_opportunity_form.html",
+                            Name = "Create New Opportunity",
+                            Description = "Create New Opportunity widget markup - Form for creating new sales opportunities",
+                            MimeType = "text/html"
+                        },
+                        new Resource
+                        {
+                            Uri = "ui://widget/opportunity_created.html",
+                            Name = "Opportunity Created",
+                            Description = "Opportunity Created widget markup - Confirmation after opportunity creation",
+                            MimeType = "text/html"
+                        }
+                    };
+                    
+                    Console.WriteLine($"[HANDLER] ListResourcesHandler returning {resources.Count} resources");
+                    return new ListResourcesResult { Resources = resources };
+                },
+                
+                // Handle resources/templates/list requests - return resource templates
+                ListResourceTemplatesHandler = async (request, ct) =>
+                {
+                    Console.WriteLine("[HANDLER] ListResourceTemplatesHandler called");
+                    
+                    var templates = new List<ResourceTemplate>
+                    {
+                        new ResourceTemplate
+                        {
+                            UriTemplate = "ui://widget/create_opportunity_form.html",
+                            Name = "Create New Opportunity",
+                            Description = "Create New Opportunity widget markup - Form for creating new sales opportunities",
+                            MimeType = "text/html"
+                        },
+                        new ResourceTemplate
+                        {
+                            UriTemplate = "ui://widget/opportunity_created.html",
+                            Name = "Opportunity Created",
+                            Description = "Opportunity Created widget markup - Confirmation after opportunity creation",
+                            MimeType = "text/html"
+                        }
+                    };
+                    
+                    Console.WriteLine($"[HANDLER] ListResourceTemplatesHandler returning {templates.Count} templates");
+                    return new ListResourceTemplatesResult { ResourceTemplates = templates };
+                },
+                
+                // Handle resources/read requests - return widget HTML content
+                ReadResourceHandler = async (request, ct) =>
+                {
+                    var uri = request.Params?.Uri ?? throw new ArgumentException("Resource URI is required");
+                    Console.WriteLine($"[HANDLER] ReadResourceHandler called for URI: {uri}");
+                    
+                    string content;
+                    string mimeType = "text/html";
+                    
+                    switch (uri)
+                    {
+                        case "ui://widget/create_opportunity_form.html":
+                            content = CreateOpportunityResource.GetCreateOpportunityForm();
+                            break;
+                        case "ui://widget/opportunity_created.html":
+                            content = CreateOpportunityResource.GetOpportunityCreatedWidget();
+                            break;
+                        default:
+                            throw new ArgumentException($"Unknown resource URI: {uri}");
+                    }
+                    
+                    Console.WriteLine($"[HANDLER] ReadResourceHandler returning content for: {uri} (length: {content.Length})");
+                    
+                    return new ReadResourceResult
+                    {
+                        Contents = new List<ResourceContents>
+                        {
+                            new TextResourceContents
+                            {
+                                Uri = uri,
+                                MimeType = mimeType,
+                                Text = content
+                            }
+                        }
+                    };
                 }
             };
 
@@ -291,8 +390,8 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 
 // Configure the HTTP request pipeline.
-//app.MapMcp();
-app.MapMcp().RequireAuthorization();
+app.MapMcp();
+//app.MapMcp().RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>
