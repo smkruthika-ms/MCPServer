@@ -97,6 +97,12 @@ public sealed class SalesChatPluginTool
     {
         return await CallAgentObject("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
+
+    [McpServerTool, Description("This plugin provides trailing prompts as actions for the logged in user. This plugin cannot summarize response.")]
+    public async Task<object> GetTrailingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
+    {
+        return await CallAgentObject("TrailingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+    }
     
 
     
