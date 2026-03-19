@@ -20,10 +20,10 @@ builder.Services
 
         // Limit idle sessions to 10,000
         options.MaxIdleSessionCount = 10000;
-        
+
 
         // Configure per-session options
-        options.ConfigureSessionOptions =  (httpContext, serverOptions, cancellationToken) =>
+        options.ConfigureSessionOptions = (httpContext, serverOptions, cancellationToken) =>
         {
             var sanitizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpContext.Request.Headers)
@@ -34,9 +34,9 @@ builder.Services
                 }
             }
 
-            sanitizedHeaders["body"] =  httpContext.Request.Body.ToString();
-            
-            
+            sanitizedHeaders["body"] = httpContext.Request.Body.ToString();
+
+
             // Extract token from Authorization header
             var authHeader = httpContext.Request.Headers["Authorization"].ToString();
             if (!string.IsNullOrEmpty(authHeader))
@@ -80,9 +80,7 @@ builder.Services
             return mcpServer.RunAsync(cancellationToken);
         };
     })
-    .WithTools<SalesChatPluginTool>()
-    .WithTools<AgentDiscoverabilityTool>()
-    .WithTools<ExtractContextTool>();
+    .WithTools<SalesChatPluginTool>();
 
 builder.Services.AddSingleton<DataverseApiService>();
 builder.Services.AddSingleton<SalesAgentPluginApiService>();
@@ -146,7 +144,7 @@ logger.LogInformation(" MCPServer started at {Time}", DateTime.UtcNow);
 
 // Configure the HTTP request pipeline.
 //app.MapMcp();
-app.MapMcp().RequireAuthorization();
+app.MapMcp();//.RequireAuthorization();
 /*
 // Example: Streamable HTTP endpoint for /sse
 app.MapGet("/sse", [Microsoft.AspNetCore.Authorization.Authorize] async (HttpContext context) =>

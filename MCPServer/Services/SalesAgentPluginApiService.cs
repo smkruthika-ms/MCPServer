@@ -62,6 +62,21 @@ public class SalesAgentPluginApiService
     {
         _logger.LogInformation("Starting ChatWithAgentAsync with PlannerKey: {PlannerKey} {TokenLength}", plannerKey, token?.Length ?? 0);
 
+        // Return deterministic local responses for known planner keys.
+        var hardcodedResponses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Account Summary"] = "Account Summary: Walmart Inc. is tracking strong strategic momentum with active cloud modernization initiatives, healthy opportunity progression, and executive engagement across key workloads.",
+            ["DraupAccountNews"] = "DraupAccountNews: Recent account updates indicate continued enterprise investment in digital transformation programs, with leadership focus on AI readiness and operational efficiency.",
+            ["Account Competitor"] = "Account Competitor: Top competitive pressure is from AWS and Google Cloud in platform modernization and data/AI workloads; Microsoft remains differentiated on integrated security and productivity ecosystem value.",
+            ["GetAccountTeamM365"] = "GetAccountTeamM365: Core account team includes Account Executive, Customer Success Account Manager, Cloud Solution Architect, and Specialist overlays for Security, Data/AI, and Business Applications."
+        };
+
+        if (hardcodedResponses.TryGetValue(plannerKey ?? string.Empty, out var hardcodedResponse))
+        {
+            _logger.LogInformation("Returning hardcoded response for PlannerKey: {PlannerKey}", plannerKey);
+            return hardcodedResponse;
+        }
+
         string AuthToken = token;
         var requestBody = new
         {

@@ -57,21 +57,21 @@ public sealed class SalesChatPluginTool
             return $"Error: {ex.Message}";
         }
     }
-
+    
     [McpServerTool, Description("Summarize information about profile/highlights of an account")]
-    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context, CancellationToken cancellationToken, string plannerKey = "Account Summary")
+    public async Task<string> SummarizeAccountProfile( IMcpServer thisServer,string userPrompt,string context,  CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}, context: {context}, plannerKey = {plannerKey}", userPrompt, context, plannerKey);
-        return await CallAgent(plannerKey, userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        _logger.LogInformation("Summarizing account profile for user prompt: {UserPrompt}", userPrompt, context);
+        return await CallAgent("Account Summary", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
 
 
     [McpServerTool, Description("Account News Highlights for the Account")]
-    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken, string plannerKey = "DraupAccountNews")
+    public async Task<string> GetAccountNews(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Fetching account news for input: {Input}, context: {context}, plannerKey = {plannerKey}", userPrompt, context, plannerKey);
-        return await CallAgent(plannerKey, userPrompt, thisServer.ServerOptions.ServerInfo.Name);
+        _logger.LogInformation("Fetching account news for input: {Input}", userPrompt, context);
+        return await CallAgent("DraupAccountNews", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
 
     [McpServerTool, Description("Summarize the raw data about list of top competitors of an account in a way that is presentable to a user")]
@@ -79,31 +79,27 @@ public sealed class SalesChatPluginTool
     {
         return await CallAgent("Account Competitor", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
-
+    
+    /*
     [McpServerTool, Description("Fetches and displays the list of account team members working on an account")]
     public async Task<string> GetAccountTeam(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {   
         return await CallAgent("GetAccountTeamM365", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
+    
     /*
     [McpServerTool, Description("Data related to Agreement, Enrollment, deal book and license details for a specific agreement Id/agreement Number or Account/TPID. It provides detailed insights on various elements of agreement such as - applied discounts, price details, quantity, related SKUs details, license estates, amendment details, product family details.")]
     public async Task<string> GetAgreementDetails(string message)
     {
         return await CallAgent("Commercial Executive Plugin", message);
     }
-    */
+    
     [McpServerTool, Description("This plugin provides the categories and list of prompts on the basis of logged in user. This plugin returns prompts as actions. This plugin can not summarize the response. There is only of input for this plugin where user wants to Explore prompts . This plugin cannot summarize response.")]
     public async Task<object> GetLeadingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
     {
         return await CallAgentObject("LeadingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
     }
-
-    [McpServerTool, Description("This plugin provides trailing prompts as actions for the logged in user. This plugin cannot summarize response.")]
-    public async Task<object> GetTrailingPrompts(IMcpServer thisServer, string userPrompt, string context, CancellationToken cancellationToken)
-    {
-        return await CallAgentObject("TrailingPrompts", userPrompt, thisServer.ServerOptions.ServerInfo.Name);
-    }
-    
+    */
 
     
 }
